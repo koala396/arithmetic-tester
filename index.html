@@ -113,6 +113,10 @@
   .chip{border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--dim);
     font-family:inherit;font-size:18px;font-weight:600;padding:12px;cursor:pointer;text-align:center}
   .chip.on{border-color:var(--accent);color:var(--accent);background:rgba(94,230,168,.07)}
+  .seg{display:flex;gap:6px}
+  .segbtn{border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--dim);
+    font-family:inherit;font-size:13px;font-weight:600;padding:7px 14px;cursor:pointer}
+  .segbtn.on{border-color:var(--accent);color:var(--accent);background:rgba(94,230,168,.07)}
   .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
   .row .note{font-size:13px;color:var(--dim)}
   .range-inputs{display:flex;gap:6px;align-items:center}
@@ -180,8 +184,19 @@
       <button class="chip" data-op="div">&divide;</button>
     </div>
     <div class="row">
+      <span class="note">Mode</span>
+      <div class="seg">
+        <button class="segbtn" data-mode="time">Time</button>
+        <button class="segbtn" data-mode="count">Questions</button>
+      </div>
+    </div>
+    <div class="row" id="durRow">
       <span class="note">Duration</span>
       <div class="range-inputs"><input class="num" id="dur" type="number" inputmode="numeric"><span>sec</span></div>
+    </div>
+    <div class="row" id="countRow">
+      <span class="note">Questions</span>
+      <div class="range-inputs"><input class="num" id="qcount" type="number" inputmode="numeric"><span>q</span></div>
     </div>
     <div class="grp">
       <h3>Addition / Subtraction</h3>
@@ -205,22 +220,26 @@
 (function(){
   /* ============================================================
      EDIT YOUR 3 PRESETS HERE.
-     ops: which operations are active.  dur: seconds.
+     ops:  which operations are active.
+     mode: 'time' = countdown of dur seconds.
+           'count' = run ends after `count` questions (timer counts up).
+     dur:  seconds (used when mode==='time').
+     count: number of questions (used when mode==='count').
      add{} ranges feed + and -  ·  mul{} ranges feed x and /
      ============================================================ */
   const PRESETS = [
     { name:'Default',
-      ops:{add:true, sub:true, mul:true, div:true}, dur:120,
+      ops:{add:true, sub:true, mul:true, div:true}, mode:'time', dur:120, count:30,
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
 
     { name:'Mult / Div',
-      ops:{add:false, sub:false, mul:true, div:true}, dur:120,
+      ops:{add:false, sub:false, mul:true, div:true}, mode:'time', dur:120, count:30,
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:12, aMax:19,  bMin:12, bMax:100} },
 
     { name:'3-digit add / sub',
-      ops:{add:true, sub:true, mul:false, div:false}, dur:120,
+      ops:{add:true, sub:true, mul:false, div:false}, mode:'time', dur:120, count:30,
       add:{aMin:100,aMax:999, bMin:100,bMax:999},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
   ];
@@ -240,7 +259,8 @@
     const r=[];
     if(p.ops.add||p.ops.sub) r.push(`\u00b1 ${p.add.aMin}\u2013${p.add.aMax}, ${p.add.bMin}\u2013${p.add.bMax}`);
     if(p.ops.mul||p.ops.div) r.push(`\u00d7 ${p.mul.aMin}\u2013${p.mul.aMax}, ${p.mul.bMin}\u2013${p.mul.bMax}`);
-    return {ops:`${ops}   \u00b7   ${p.dur}s`, rng:r.join('     ')};
+    const limit = p.mode==='count' ? `${p.count} q` : `${p.dur}s`;
+    return {ops:`${ops}   \u00b7   ${limit}`, rng:r.join('     ')};
   }
   function renderCards(){
     const wrap=$('cards'); wrap.innerHTML='';
@@ -270,14 +290,23 @@
   }
 
   function fmt(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+  function updateScore(){
+    $('score').textContent = (running && cfg().mode==='count') ? `${score} / ${cfg().count}` : String(score);
+  }
   function update(){
+    if(cfg().mode==='count'){
+      const el=Math.floor((Date.now()-startedAt)/1000);
+      const t=$('timer'); t.textContent=fmt(el); t.classList.remove('low');
+      return;
+    }
     const left=Math.max(0,Math.round((endAt-Date.now())/1000));
     const t=$('timer'); t.textContent=fmt(left); t.classList.toggle('low',left<=10);
     if(left<=0) finish('time');
   }
   function start(){
-    score=0; $('score').textContent='0'; history=[];
+    score=0; history=[];
     running=true; startedAt=Date.now(); runT0=performance.now(); endAt=startedAt+cfg().dur*1000;
+    updateScore();
     $('homeScreen').classList.add('hidden'); $('endScreen').classList.add('hidden');
     update(); clearInterval(tick); tick=setInterval(update,250);
     nextProblem(); $('answer').focus();
@@ -285,12 +314,14 @@
   function finish(reason){
     if(!running) return;
     running=false; clearInterval(tick); $('answer').blur();
-    const elapsed=Math.min(cfg().dur,(Date.now()-startedAt)/1000);
+    const elapsed = cfg().mode==='count'
+      ? (Date.now()-startedAt)/1000
+      : Math.min(cfg().dur,(Date.now()-startedAt)/1000);
     const rate=elapsed>=1 ? (score/(elapsed/60)).toFixed(1) : '0.0';
-    $('endTitle').textContent = reason==='stopped' ? 'Stopped' : 'Time';
+    $('endTitle').textContent = reason==='stopped' ? 'Stopped' : reason==='done' ? 'Done' : 'Time';
     $('finalScore').textContent=score;
     $('finalSub').textContent=rate+' per minute';
-    renderResults();
+    renderResults(elapsed);
     $('endScreen').classList.remove('hidden');
     $('endScreen').scrollTop=0;
   }
@@ -320,16 +351,17 @@
     });
     s+=`<text x="${W-padR}" y="${(Y(avg)-4).toFixed(1)}" text-anchor="end" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">avg ${avg.toFixed(1)}s</text>`;
     s+=`<text x="${padL}" y="${H-6}" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">0s</text>`;
-    s+=`<text x="${W-padR}" y="${H-6}" text-anchor="end" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">${dur}s</text>`;
+    s+=`<text x="${W-padR}" y="${H-6}" text-anchor="end" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">${Math.round(dur)}s</text>`;
     s+=`</svg>`;
     return s;
   }
-  function renderResults(){
+  function renderResults(elapsed){
     const has=history.length>0;
     $('chartPanel').style.display=has?'':'none';
     $('slowPanel').style.display=has?'':'none';
     if(!has) return;
-    $('chart').innerHTML=buildChart(history,cfg().dur);
+    const span = cfg().mode==='count' ? (elapsed||Math.max(...history.map(h=>h.at),1)) : cfg().dur;
+    $('chart').innerHTML=buildChart(history,span);
     const slow=[...history].sort((a,b)=>b.dt-a.dt).slice(0,5);
     $('slowest').innerHTML=slow.map(h=>
       `<div class="qrow"><span class="q">${h.text} = ${h.answer}</span><span class="t">${h.dt.toFixed(2)}s</span></div>`
@@ -344,17 +376,26 @@
     if(v!=='' && parseInt(v,10)===answer){
       const now=performance.now();
       history.push({text:$('problem').textContent, answer:answer, dt:(now-qStart)/1000, at:(now-runT0)/1000});
-      score++; $('score').textContent=score; nextProblem();
+      score++; updateScore();
+      if(cfg().mode==='count' && score>=cfg().count){ finish('done'); return; }
+      nextProblem();
     }
   });
 
   /* ---- settings ---- */
   const sheet=$('sheet');
+  function setSheetMode(mode){
+    document.querySelectorAll('.segbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+    $('durRow').style.display   = mode==='count' ? 'none' : '';
+    $('countRow').style.display = mode==='count' ? '' : 'none';
+  }
+  document.querySelectorAll('.segbtn').forEach(b=>b.addEventListener('click',()=>setSheetMode(b.dataset.mode)));
   function openSettings(){
     const c=cfg();
     $('sheetName').textContent=c.name;
     document.querySelectorAll('.chip').forEach(ch=>ch.classList.toggle('on',c.ops[ch.dataset.op]));
-    $('dur').value=c.dur;
+    setSheetMode(c.mode||'time');
+    $('dur').value=c.dur; $('qcount').value=c.count;
     $('aMin').value=c.add.aMin;$('aMax').value=c.add.aMax;$('bMin').value=c.add.bMin;$('bMax').value=c.add.bMax;
     $('cMin').value=c.mul.aMin;$('cMax').value=c.mul.aMax;$('dMin').value=c.mul.bMin;$('dMax').value=c.mul.bMax;
     sheet.classList.remove('hidden');
@@ -367,7 +408,10 @@
     document.querySelectorAll('.chip').forEach(ch=>ops[ch.dataset.op]=ch.classList.contains('on'));
     if(!Object.values(ops).some(Boolean)) ops.add=true;
     c.ops=ops;
+    const modeBtn=document.querySelector('.segbtn.on');
+    c.mode=modeBtn?modeBtn.dataset.mode:'time';
     c.dur=Math.max(5,parseInt($('dur').value,10)||c.dur);
+    c.count=Math.max(1,parseInt($('qcount').value,10)||c.count);
     c.add={aMin:+$('aMin').value,aMax:+$('aMax').value,bMin:+$('bMin').value,bMax:+$('bMax').value};
     c.mul={aMin:+$('cMin').value,aMax:+$('cMax').value,bMin:+$('dMin').value,bMax:+$('dMax').value};
     sheet.classList.add('hidden');
@@ -384,7 +428,7 @@
   });
 
   renderCards();
-  $('timer').textContent=fmt(cfg().dur);
+  $('timer').textContent = cfg().mode==='count' ? '0:00' : fmt(cfg().dur);
 
   /* ---- offline: register service worker (works once hosted over https) ---- */
   if('serviceWorker' in navigator && location.protocol==='https:'){
