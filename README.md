@@ -19,6 +19,10 @@ keeps working fully offline.
 - **Presets** — 3 modes live in the `PRESETS` array at the top of the script in
   `index.html`: (1) Zetamac defaults +−×÷, (2) Mult/Div 12–19 × 12–100,
   (3) 3-digit add/sub. Pick on the home screen; Start runs the selected one.
+- **Run mode** — each preset ends either on a time countdown (`mode:'time'`,
+  `dur` seconds) or after a fixed number of questions (`mode:'count'`, `count`
+  questions, timer counts up). Default and 3-digit presets are timed; Mult/Div
+  defaults to a question count. Toggle it per preset in the settings sheet.
 - **Settings cog** edits the selected preset in memory for the session only —
   changes reset on reload. Permanent changes mean editing the `PRESETS` array.
 - **Math invariants** — subtraction is always non-negative (rendered as
