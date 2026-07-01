@@ -33,7 +33,6 @@
   .bar .stat{font-size:13px;letter-spacing:.05em;color:var(--dim);justify-self:start}
   .bar .stat b{color:var(--ink);font-weight:600}
   .bar .timer{font-size:13px;letter-spacing:.05em;color:var(--accent);font-weight:600;justify-self:center}
-  .bar .timer.low{color:var(--warn)}
   .bar .stop{
     justify-self:end;background:none;border:1px solid var(--line);color:var(--dim);
     font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
@@ -296,11 +295,11 @@
   function update(){
     if(cfg().mode==='count'){
       const el=Math.floor((Date.now()-startedAt)/1000);
-      const t=$('timer'); t.textContent=fmt(el); t.classList.remove('low');
+      $('timer').textContent=fmt(el);
       return;
     }
     const left=Math.max(0,Math.round((endAt-Date.now())/1000));
-    const t=$('timer'); t.textContent=fmt(left); t.classList.toggle('low',left<=10);
+    $('timer').textContent=fmt(left);
     if(left<=0) finish('time');
   }
   function start(){
@@ -318,9 +317,10 @@
       ? (Date.now()-startedAt)/1000
       : Math.min(cfg().dur,(Date.now()-startedAt)/1000);
     const rate=elapsed>=1 ? (score/(elapsed/60)).toFixed(1) : '0.0';
-    $('endTitle').textContent = reason==='stopped' ? 'Stopped' : reason==='done' ? 'Done' : 'Time';
-    $('finalScore').textContent=score;
-    $('finalSub').textContent=rate+' per minute';
+    const count = cfg().mode==='count';
+    $('endTitle').textContent = reason==='stopped' ? 'Stopped' : 'Time';
+    $('finalScore').textContent = count ? fmt(Math.round(elapsed)) : score;
+    $('finalSub').textContent = count ? `${score} solved · ${rate} per minute` : rate+' per minute';
     renderResults(elapsed);
     $('endScreen').classList.remove('hidden');
     $('endScreen').scrollTop=0;
@@ -425,6 +425,14 @@
   $('stopBtn').addEventListener('click',()=>finish('stopped'));
   $('changeBtn').addEventListener('click',()=>{
     $('endScreen').classList.add('hidden'); $('homeScreen').classList.remove('hidden');
+  });
+  /* Enter starts the run from the home screen (Start) or the end screen (Go again). */
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Enter') return;
+    const onHomeOrEnd = !$('homeScreen').classList.contains('hidden') || !$('endScreen').classList.contains('hidden');
+    if(!running && sheet.classList.contains('hidden') && onHomeOrEnd){
+      e.preventDefault(); start();
+    }
   });
 
   renderCards();
