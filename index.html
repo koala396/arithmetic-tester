@@ -55,6 +55,12 @@
     -webkit-user-select:text;user-select:text;
   }
   .answer:focus{border-bottom-color:var(--accent)}
+  @keyframes flash-red{
+    0%,100%{border-bottom-color:var(--line);color:var(--accent)}
+    20%,80%{border-bottom-color:var(--warn);color:var(--warn);transform:translateX(-4px)}
+    40%,60%{border-bottom-color:var(--warn);color:var(--warn);transform:translateX(4px)}
+  }
+  .answer.error{animation:flash-red .3s ease;border-bottom-color:var(--warn);color:var(--warn)}
 
   /* overlays */
   .screen{position:fixed;inset:0;background:var(--bg);z-index:5;
@@ -138,8 +144,10 @@
 </div>
 <div class="play">
   <div class="problem" id="problem">7 + 4</div>
-  <input class="answer" id="answer" type="text" inputmode="numeric" pattern="[0-9]*"
-         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Answer">
+  <form id="playForm" action="javascript:void(0);" style="display:contents">
+    <input class="answer" id="answer" type="text" inputmode="numeric" pattern="[0-9]*"
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Answer">
+  </form>
 </div>
 
 <!-- HOME -->
@@ -184,9 +192,16 @@
     </div>
     <div class="row">
       <span class="note">Mode</span>
-      <div class="seg">
+      <div class="seg" id="modeSeg">
         <button class="segbtn" data-mode="time">Time</button>
         <button class="segbtn" data-mode="count">Questions</button>
+      </div>
+    </div>
+    <div class="row">
+      <span class="note">Advance</span>
+      <div class="seg" id="advanceSeg">
+        <button class="segbtn" data-advance="auto">Auto</button>
+        <button class="segbtn" data-advance="enter">Enter</button>
       </div>
     </div>
     <div class="row" id="durRow">
@@ -228,17 +243,17 @@
      ============================================================ */
   const PRESETS = [
     { name:'Default',
-      ops:{add:true, sub:true, mul:true, div:true}, mode:'time', dur:120, count:60,
+      ops:{add:true, sub:true, mul:true, div:true}, mode:'time', dur:120, count:60, requireEnter:false,
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
 
     { name:'Mult / Div',
-      ops:{add:false, sub:false, mul:true, div:true}, mode:'count', dur:120, count:10,
+      ops:{add:false, sub:false, mul:true, div:true}, mode:'count', dur:120, count:10, requireEnter:false,
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:12, aMax:19,  bMin:12, bMax:100} },
 
     { name:'3-digit add / sub',
-      ops:{add:true, sub:true, mul:false, div:false}, mode:'time', dur:120, count:30,
+      ops:{add:true, sub:true, mul:false, div:false}, mode:'time', dur:120, count:30, requireEnter:false,
       add:{aMin:100,aMax:999, bMin:100,bMax:999},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
   ];
@@ -248,7 +263,8 @@
   const rnd = (lo,hi) => Math.floor(Math.random()*(hi-lo+1))+lo;
 
   let sel=0, answer=0, score=0, running=false, startedAt=0, endAt=0, tick=null;
-  let history=[], qStart=0, runT0=0;
+  let history=[], wrongHistory=[], qStart=0, runT0=0;
+  let cooldownTick=null, cooldownEnd=0;
   const cfg = () => PRESETS[sel];
 
   /* ---- preset cards ---- */
@@ -259,7 +275,8 @@
     if(p.ops.add||p.ops.sub) r.push(`\u00b1 ${p.add.aMin}\u2013${p.add.aMax}, ${p.add.bMin}\u2013${p.add.bMax}`);
     if(p.ops.mul||p.ops.div) r.push(`\u00d7 ${p.mul.aMin}\u2013${p.mul.aMax}, ${p.mul.bMin}\u2013${p.mul.bMax}`);
     const limit = p.mode==='count' ? `${p.count} q` : `${p.dur}s`;
-    return {ops:`${ops}   \u00b7   ${limit}`, rng:r.join('     ')};
+    const adv = p.requireEnter ? ' \u00b7 Enter' : '';
+    return {ops:`${ops}   \u00b7   ${limit}${adv}`, rng:r.join('     ')};
   }
   function renderCards(){
     const wrap=$('cards'); wrap.innerHTML='';
@@ -284,7 +301,7 @@
     else if(op==='mul'){const a=rnd(c.mul.aMin,c.mul.aMax),b=rnd(c.mul.bMin,c.mul.bMax);text=`${a} \u00d7 ${b}`;answer=a*b;}
     else{const a=rnd(c.mul.aMin,c.mul.aMax),b=rnd(c.mul.bMin,c.mul.bMax);text=`${a*b} \u00f7 ${a}`;answer=b;}
     $('problem').textContent=text;
-    const a=$('answer'); a.value=''; if(running) a.focus();
+    const a=$('answer'); a.value=''; a.classList.remove('error'); if(running) a.focus();
     qStart=performance.now();
   }
 
@@ -303,7 +320,10 @@
     if(left<=0) finish('time');
   }
   function start(){
-    score=0; history=[];
+    score=0; history=[]; wrongHistory=[];
+    if(cooldownTick){ clearInterval(cooldownTick); cooldownTick=null; }
+    cooldownEnd=0;
+    $('againBtn').textContent='Go again';
     running=true; startedAt=Date.now(); runT0=performance.now(); endAt=startedAt+cfg().dur*1000;
     updateScore();
     $('homeScreen').classList.add('hidden'); $('endScreen').classList.add('hidden');
@@ -322,25 +342,50 @@
     $('finalScore').textContent = count ? fmt(Math.round(elapsed)) : score;
     $('finalSub').textContent = count ? `${score} solved · ${rate} per minute` : rate+' per minute';
     renderResults(elapsed);
+
+    if(cooldownTick){ clearInterval(cooldownTick); cooldownTick=null; }
+    if(cfg().requireEnter){
+      cooldownEnd = Date.now() + 2000;
+      const updateCooldown = () => {
+        const left = Math.ceil((cooldownEnd - Date.now())/1000);
+        if(left > 0){
+          $('againBtn').textContent = `Go again (${left}s)`;
+        } else {
+          $('againBtn').textContent = 'Go again';
+          clearInterval(cooldownTick);
+          cooldownTick = null;
+        }
+      };
+      updateCooldown();
+      cooldownTick = setInterval(updateCooldown, 200);
+    } else {
+      cooldownEnd = 0;
+      $('againBtn').textContent = 'Go again';
+    }
+
     $('endScreen').classList.remove('hidden');
     $('endScreen').scrollTop=0;
   }
 
   /* ---- results: timeseries chart + slowest questions ---- */
-  function buildChart(hist, dur){
-    if(hist.length===0) return '<div class="empty">No questions solved.</div>';
+  function buildChart(hist, wrongHist, dur){
+    if(hist.length===0 && wrongHist.length===0) return '<div class="empty">No questions solved.</div>';
     const W=440,H=150,padL=10,padR=10,padT=14,padB=20;
     const ys=hist.map(h=>h.dt);
-    const xMax=dur||Math.max(...hist.map(h=>h.at),1);
-    const yMax=Math.max(...ys)*1.12 || 1;
+    const allYs=[...ys, ...wrongHist.map(w=>w.dt)];
+    const allAts=[...hist.map(h=>h.at), ...wrongHist.map(w=>w.at)];
+    const xMax=dur||Math.max(...allAts,1);
+    const yMax=Math.max(...allYs,1)*1.12 || 1;
     const X=t=>padL+(t/xMax)*(W-padL-padR);
     const Y=v=>padT+(1-(v/yMax))*(H-padT-padB);
-    const avg=ys.reduce((a,b)=>a+b,0)/ys.length;
+    const avg=ys.length ? ys.reduce((a,b)=>a+b,0)/ys.length : 0;
     const order=[...hist.keys()].sort((a,b)=>ys[b]-ys[a]);
     const slowSet=new Set(order.slice(0,Math.min(5,hist.length)));
     let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Solve time per question">`;
     s+=`<line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#23262e" stroke-width="1"/>`;
-    s+=`<line x1="${padL}" y1="${Y(avg).toFixed(1)}" x2="${W-padR}" y2="${Y(avg).toFixed(1)}" stroke="#3a3f4a" stroke-width="1" stroke-dasharray="3 4"/>`;
+    if(ys.length>0){
+      s+=`<line x1="${padL}" y1="${Y(avg).toFixed(1)}" x2="${W-padR}" y2="${Y(avg).toFixed(1)}" stroke="#3a3f4a" stroke-width="1" stroke-dasharray="3 4"/>`;
+    }
     if(hist.length>1){
       const pts=hist.map(h=>`${X(h.at).toFixed(1)},${Y(h.dt).toFixed(1)}`).join(' ');
       s+=`<polyline points="${pts}" fill="none" stroke="#5ee6a8" stroke-width="1.4" stroke-opacity="0.45" stroke-linejoin="round"/>`;
@@ -349,52 +394,112 @@
       const slow=slowSet.has(i);
       s+=`<circle cx="${X(h.at).toFixed(1)}" cy="${Y(h.dt).toFixed(1)}" r="${slow?3.2:2}" fill="${slow?'#ff6b6b':'#5ee6a8'}"/>`;
     });
-    s+=`<text x="${W-padR}" y="${(Y(avg)-4).toFixed(1)}" text-anchor="end" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">avg ${avg.toFixed(1)}s</text>`;
+    wrongHist.forEach(w=>{
+      const cx=X(w.at), cy=Y(w.dt);
+      const r=3.5;
+      s+=`<line x1="${(cx-r).toFixed(1)}" y1="${(cy-r).toFixed(1)}" x2="${(cx+r).toFixed(1)}" y2="${(cy+r).toFixed(1)}" stroke="#ff6b6b" stroke-width="1.8" stroke-linecap="round"/>`;
+      s+=`<line x1="${(cx+r).toFixed(1)}" y1="${(cy-r).toFixed(1)}" x2="${(cx-r).toFixed(1)}" y2="${(cy+r).toFixed(1)}" stroke="#ff6b6b" stroke-width="1.8" stroke-linecap="round"/>`;
+    });
+    if(ys.length>0){
+      s+=`<text x="${W-padR}" y="${(Y(avg)-4).toFixed(1)}" text-anchor="end" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">avg ${avg.toFixed(1)}s</text>`;
+    }
     s+=`<text x="${padL}" y="${H-6}" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">0s</text>`;
     s+=`<text x="${W-padR}" y="${H-6}" text-anchor="end" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">${Math.round(dur)}s</text>`;
     s+=`</svg>`;
     return s;
   }
   function renderResults(elapsed){
-    const has=history.length>0;
+    const has=history.length>0 || wrongHistory.length>0;
     $('chartPanel').style.display=has?'':'none';
-    $('slowPanel').style.display=has?'':'none';
+    $('slowPanel').style.display=history.length>0?'':'none';
     if(!has) return;
-    const span = cfg().mode==='count' ? (elapsed||Math.max(...history.map(h=>h.at),1)) : cfg().dur;
-    $('chart').innerHTML=buildChart(history,span);
+    const allAts=[...history.map(h=>h.at), ...wrongHistory.map(w=>w.at)];
+    const span = cfg().mode==='count' ? (elapsed||Math.max(...allAts,1)) : cfg().dur;
+    $('chart').innerHTML=buildChart(history,wrongHistory,span);
     const slow=[...history].sort((a,b)=>b.dt-a.dt).slice(0,5);
     $('slowest').innerHTML=slow.map(h=>
       `<div class="qrow"><span class="q">${h.text} = ${h.answer}</span><span class="t">${h.dt.toFixed(2)}s</span></div>`
     ).join('');
   }
 
-  /* ---- answer input: auto-advance when correct ---- */
+  /* ---- answer submission & validation ---- */
+  function submitCorrect(){
+    const now=performance.now();
+    history.push({text:$('problem').textContent, answer:answer, dt:(now-qStart)/1000, at:(now-runT0)/1000});
+    score++; updateScore();
+    if(cfg().mode==='count' && score>=cfg().count){ finish('done'); return; }
+    nextProblem();
+  }
+
+  function submitIncorrect(v){
+    const now=performance.now();
+    wrongHistory.push({text:$('problem').textContent, answer:answer, attempt:v, dt:(now-qStart)/1000, at:(now-runT0)/1000});
+    const a=$('answer');
+    a.classList.remove('error');
+    void a.offsetWidth; // trigger reflow for animation restart
+    a.classList.add('error');
+    a.value='';
+  }
+
+  function checkAndSubmit(){
+    if(!running) return;
+    const v=$('answer').value.trim();
+    if(v==='') return;
+    const num=parseInt(v,10);
+    if(num===answer){
+      submitCorrect();
+    } else {
+      submitIncorrect(num);
+    }
+  }
+
+  /* ---- answer input events ---- */
   $('answer').addEventListener('input',e=>{
     if(!running) return;
+    $('answer').classList.remove('error');
     const v=e.target.value.replace(/[^0-9]/g,'');
     if(v!==e.target.value) e.target.value=v;
-    if(v!=='' && parseInt(v,10)===answer){
-      const now=performance.now();
-      history.push({text:$('problem').textContent, answer:answer, dt:(now-qStart)/1000, at:(now-runT0)/1000});
-      score++; updateScore();
-      if(cfg().mode==='count' && score>=cfg().count){ finish('done'); return; }
-      nextProblem();
+    if(!cfg().requireEnter && v!=='' && parseInt(v,10)===answer){
+      submitCorrect();
+    }
+  });
+
+  $('playForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    if(!running) return;
+    if(cfg().requireEnter){
+      checkAndSubmit();
+    }
+  });
+
+  $('answer').addEventListener('keydown',e=>{
+    if(e.key==='Enter'){
+      if(!running) return;
+      if(cfg().requireEnter){
+        e.preventDefault();
+        checkAndSubmit();
+      }
     }
   });
 
   /* ---- settings ---- */
   const sheet=$('sheet');
   function setSheetMode(mode){
-    document.querySelectorAll('.segbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+    document.querySelectorAll('#modeSeg .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
     $('durRow').style.display   = mode==='count' ? 'none' : '';
     $('countRow').style.display = mode==='count' ? '' : 'none';
   }
-  document.querySelectorAll('.segbtn').forEach(b=>b.addEventListener('click',()=>setSheetMode(b.dataset.mode)));
+  document.querySelectorAll('#modeSeg .segbtn').forEach(b=>b.addEventListener('click',()=>setSheetMode(b.dataset.mode)));
+  document.querySelectorAll('#advanceSeg .segbtn').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#advanceSeg .segbtn').forEach(x=>x.classList.toggle('on',x===b));
+  }));
   function openSettings(){
     const c=cfg();
     $('sheetName').textContent=c.name;
     document.querySelectorAll('.chip').forEach(ch=>ch.classList.toggle('on',c.ops[ch.dataset.op]));
     setSheetMode(c.mode||'time');
+    const req = !!c.requireEnter;
+    document.querySelectorAll('#advanceSeg .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.advance===(req?'enter':'auto')));
     $('dur').value=c.dur; $('qcount').value=c.count;
     $('aMin').value=c.add.aMin;$('aMax').value=c.add.aMax;$('bMin').value=c.add.bMin;$('bMax').value=c.add.bMax;
     $('cMin').value=c.mul.aMin;$('cMax').value=c.mul.aMax;$('dMin').value=c.mul.bMin;$('dMax').value=c.mul.bMax;
@@ -408,8 +513,10 @@
     document.querySelectorAll('.chip').forEach(ch=>ops[ch.dataset.op]=ch.classList.contains('on'));
     if(!Object.values(ops).some(Boolean)) ops.add=true;
     c.ops=ops;
-    const modeBtn=document.querySelector('.segbtn.on');
+    const modeBtn=document.querySelector('#modeSeg .segbtn.on');
     c.mode=modeBtn?modeBtn.dataset.mode:'time';
+    const advBtn=document.querySelector('#advanceSeg .segbtn.on');
+    c.requireEnter=advBtn?advBtn.dataset.advance==='enter':false;
     c.dur=Math.max(5,parseInt($('dur').value,10)||c.dur);
     c.count=Math.max(1,parseInt($('qcount').value,10)||c.count);
     c.add={aMin:+$('aMin').value,aMax:+$('aMax').value,bMin:+$('bMin').value,bMax:+$('bMax').value};
@@ -429,9 +536,19 @@
   /* Enter starts the run from the home screen (Start) or the end screen (Go again). */
   document.addEventListener('keydown',e=>{
     if(e.key!=='Enter') return;
-    const onHomeOrEnd = !$('homeScreen').classList.contains('hidden') || !$('endScreen').classList.contains('hidden');
-    if(!running && sheet.classList.contains('hidden') && onHomeOrEnd){
-      e.preventDefault(); start();
+    if(running || !sheet.classList.contains('hidden')) return;
+    const onEnd = !$('endScreen').classList.contains('hidden');
+    const onHome = !$('homeScreen').classList.contains('hidden');
+    if(onEnd){
+      if(Date.now() < cooldownEnd){
+        e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      start();
+    } else if(onHome){
+      e.preventDefault();
+      start();
     }
   });
 
