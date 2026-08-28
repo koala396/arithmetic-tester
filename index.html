@@ -169,6 +169,10 @@
       <div class="phead">Seconds per question</div>
       <div id="chart"></div>
     </div>
+    <div class="panel" id="wrongPanel" style="display:none">
+      <div class="phead">Mistakes</div>
+      <div id="mistakes"></div>
+    </div>
     <div class="panel" id="slowPanel">
       <div class="phead">Slowest questions</div>
       <div id="slowest"></div>
@@ -307,7 +311,8 @@
 
   function fmt(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
   function updateScore(){
-    $('score').textContent = (running && cfg().mode==='count') ? `${score} / ${cfg().count}` : String(score);
+    const total = score + wrongHistory.length;
+    $('score').textContent = (running && cfg().mode==='count') ? `${total} / ${cfg().count}` : String(score);
   }
   function update(){
     if(cfg().mode==='count'){
@@ -340,12 +345,16 @@
     const count = cfg().mode==='count';
     $('endTitle').textContent = reason==='stopped' ? 'Stopped' : 'Time';
     $('finalScore').textContent = count ? fmt(Math.round(elapsed)) : score;
-    $('finalSub').textContent = count ? `${score} solved · ${rate} per minute` : rate+' per minute';
+    const total = score + wrongHistory.length;
+    $('finalSub').textContent = count
+      ? (wrongHistory.length>0 ? `${score}/${total} correct \u00b7 ${rate} per minute` : `${score} solved \u00b7 ${rate} per minute`)
+      : (wrongHistory.length>0 ? `${score} solved (${wrongHistory.length} wrong) \u00b7 ${rate} per minute` : rate+' per minute');
     renderResults(elapsed);
 
     if(cooldownTick){ clearInterval(cooldownTick); cooldownTick=null; }
     if(cfg().requireEnter){
-      cooldownEnd = Date.now() + 2000;
+      const waitTime = count ? 0 : 1000;
+      cooldownEnd = Date.now() + waitTime;
       const updateCooldown = () => {
         const left = Math.ceil((cooldownEnd - Date.now())/1000);
         if(left > 0){
@@ -357,7 +366,9 @@
         }
       };
       updateCooldown();
-      cooldownTick = setInterval(updateCooldown, 200);
+      if(waitTime > 0){
+        cooldownTick = setInterval(updateCooldown, 200);
+      }
     } else {
       cooldownEnd = 0;
       $('againBtn').textContent = 'Go again';
@@ -374,20 +385,21 @@
     const ys=hist.map(h=>h.dt);
     const allYs=[...ys, ...wrongHist.map(w=>w.dt)];
     const allAts=[...hist.map(h=>h.at), ...wrongHist.map(w=>w.at)];
+    const allItems=[...hist.map(h=>({...h, wrong:false})), ...wrongHist.map(w=>({...w, wrong:true}))].sort((a,b)=>a.at-b.at);
     const xMax=dur||Math.max(...allAts,1);
     const yMax=Math.max(...allYs,1)*1.12 || 1;
     const X=t=>padL+(t/xMax)*(W-padL-padR);
     const Y=v=>padT+(1-(v/yMax))*(H-padT-padB);
-    const avg=ys.length ? ys.reduce((a,b)=>a+b,0)/ys.length : 0;
+    const avg=allYs.length ? allYs.reduce((a,b)=>a+b,0)/allYs.length : 0;
     const order=[...hist.keys()].sort((a,b)=>ys[b]-ys[a]);
     const slowSet=new Set(order.slice(0,Math.min(5,hist.length)));
     let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Solve time per question">`;
     s+=`<line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#23262e" stroke-width="1"/>`;
-    if(ys.length>0){
+    if(allYs.length>0){
       s+=`<line x1="${padL}" y1="${Y(avg).toFixed(1)}" x2="${W-padR}" y2="${Y(avg).toFixed(1)}" stroke="#3a3f4a" stroke-width="1" stroke-dasharray="3 4"/>`;
     }
-    if(hist.length>1){
-      const pts=hist.map(h=>`${X(h.at).toFixed(1)},${Y(h.dt).toFixed(1)}`).join(' ');
+    if(allItems.length>1){
+      const pts=allItems.map(h=>`${X(h.at).toFixed(1)},${Y(h.dt).toFixed(1)}`).join(' ');
       s+=`<polyline points="${pts}" fill="none" stroke="#5ee6a8" stroke-width="1.4" stroke-opacity="0.45" stroke-linejoin="round"/>`;
     }
     hist.forEach((h,i)=>{
@@ -400,7 +412,7 @@
       s+=`<line x1="${(cx-r).toFixed(1)}" y1="${(cy-r).toFixed(1)}" x2="${(cx+r).toFixed(1)}" y2="${(cy+r).toFixed(1)}" stroke="#ff6b6b" stroke-width="1.8" stroke-linecap="round"/>`;
       s+=`<line x1="${(cx+r).toFixed(1)}" y1="${(cy-r).toFixed(1)}" x2="${(cx-r).toFixed(1)}" y2="${(cy+r).toFixed(1)}" stroke="#ff6b6b" stroke-width="1.8" stroke-linecap="round"/>`;
     });
-    if(ys.length>0){
+    if(allYs.length>0){
       s+=`<text x="${W-padR}" y="${(Y(avg)-4).toFixed(1)}" text-anchor="end" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">avg ${avg.toFixed(1)}s</text>`;
     }
     s+=`<text x="${padL}" y="${H-6}" font-size="9" fill="#7d828c" font-family="ui-monospace,monospace">0s</text>`;
@@ -412,10 +424,16 @@
     const has=history.length>0 || wrongHistory.length>0;
     $('chartPanel').style.display=has?'':'none';
     $('slowPanel').style.display=history.length>0?'':'none';
+    $('wrongPanel').style.display=wrongHistory.length>0?'':'none';
     if(!has) return;
     const allAts=[...history.map(h=>h.at), ...wrongHistory.map(w=>w.at)];
     const span = cfg().mode==='count' ? (elapsed||Math.max(...allAts,1)) : cfg().dur;
     $('chart').innerHTML=buildChart(history,wrongHistory,span);
+    if(wrongHistory.length>0){
+      $('mistakes').innerHTML=wrongHistory.map(w=>
+        `<div class="qrow"><span class="q">${w.text} = <b style="color:var(--accent)">${w.answer}</b> <span style="color:var(--dim);font-size:13px">(typed <span style="color:var(--warn)">${w.attempt}</span>)</span></span><span class="t">${w.dt.toFixed(2)}s</span></div>`
+      ).join('');
+    }
     const slow=[...history].sort((a,b)=>b.dt-a.dt).slice(0,5);
     $('slowest').innerHTML=slow.map(h=>
       `<div class="qrow"><span class="q">${h.text} = ${h.answer}</span><span class="t">${h.dt.toFixed(2)}s</span></div>`
@@ -427,18 +445,16 @@
     const now=performance.now();
     history.push({text:$('problem').textContent, answer:answer, dt:(now-qStart)/1000, at:(now-runT0)/1000});
     score++; updateScore();
-    if(cfg().mode==='count' && score>=cfg().count){ finish('done'); return; }
+    if(cfg().mode==='count' && (score + wrongHistory.length)>=cfg().count){ finish('done'); return; }
     nextProblem();
   }
 
   function submitIncorrect(v){
     const now=performance.now();
     wrongHistory.push({text:$('problem').textContent, answer:answer, attempt:v, dt:(now-qStart)/1000, at:(now-runT0)/1000});
-    const a=$('answer');
-    a.classList.remove('error');
-    void a.offsetWidth; // trigger reflow for animation restart
-    a.classList.add('error');
-    a.value='';
+    updateScore();
+    if(cfg().mode==='count' && (score + wrongHistory.length)>=cfg().count){ finish('done'); return; }
+    nextProblem();
   }
 
   function checkAndSubmit(){
@@ -466,6 +482,7 @@
 
   $('playForm').addEventListener('submit',e=>{
     e.preventDefault();
+    e.stopPropagation();
     if(!running) return;
     if(cfg().requireEnter){
       checkAndSubmit();
@@ -477,6 +494,7 @@
       if(!running) return;
       if(cfg().requireEnter){
         e.preventDefault();
+        e.stopPropagation();
         checkAndSubmit();
       }
     }
@@ -536,7 +554,7 @@
   /* Enter starts the run from the home screen (Start) or the end screen (Go again). */
   document.addEventListener('keydown',e=>{
     if(e.key!=='Enter') return;
-    if(running || !sheet.classList.contains('hidden')) return;
+    if(running || !sheet.classList.contains('hidden') || e.target === $('answer')) return;
     const onEnd = !$('endScreen').classList.contains('hidden');
     const onHome = !$('homeScreen').classList.contains('hidden');
     if(onEnd){
