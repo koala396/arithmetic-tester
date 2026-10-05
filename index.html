@@ -67,12 +67,24 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:24px;padding:34px;text-align:center;}
   .screen.hidden{display:none}
-  .cog{position:absolute;top:calc(env(safe-area-inset-top) + 14px);right:18px;
-    background:none;border:none;color:var(--dim);font-size:20px;padding:6px;cursor:pointer}
+  .top-actions{position:absolute;top:calc(env(safe-area-inset-top) + 14px);right:18px;display:flex;gap:8px;z-index:6}
+  .iconbtn{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    color:var(--dim);width:34px;height:34px;padding:0;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:border-color .15s,color .15s,background .15s;
+  }
+  .iconbtn:hover{color:var(--accent);border-color:var(--accent);background:rgba(94,230,168,.06)}
+  .iconbtn:active{transform:translateY(1px)}
+  .iconbtn svg{width:17px;height:17px;display:block}
   .title{font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
   .big{font-size:clamp(48px,17vw,100px);font-weight:600;color:var(--accent);
     font-variant-numeric:tabular-nums;line-height:1}
   .sub{font-size:14px;color:var(--dim);letter-spacing:.03em}
+  .pb-banner{font-size:12px;letter-spacing:.15em;font-weight:700;color:var(--accent);background:rgba(94,230,168,.12);
+    border:1px solid rgba(94,230,168,.35);padding:6px 16px;border-radius:20px;text-transform:uppercase;animation:pop .3s ease}
+  .pb-banner.hidden{display:none}
+  @keyframes pop{0%{transform:scale(.88);opacity:0}100%{transform:scale(1);opacity:1}}
 
   /* results screen (after a run) */
   #endScreen{justify-content:flex-start;overflow-y:auto;
@@ -105,6 +117,22 @@
   .card.sel .name{color:var(--accent)}
   .card .ops{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.04em}
   .card .rng{font-size:12px;color:var(--dim);margin-top:4px;font-variant-numeric:tabular-nums}
+  .card-pb{font-size:12px;color:var(--accent);margin-top:7px;font-variant-numeric:tabular-nums}
+  .card-pb b{font-weight:600}
+
+  /* history list rows and stats */
+  .hist-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .hist-stat{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 8px;text-align:center}
+  .hist-stat .val{font-size:18px;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
+  .hist-stat .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+  .hrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .hrow:last-child{border-bottom:none}
+  .hrow .hmain{display:flex;align-items:baseline;gap:8px}
+  .hrow .hscore{font-size:15px;font-weight:600;color:var(--ink)}
+  .hrow .hbadge{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border-radius:4px;background:rgba(94,230,168,.15);color:var(--accent)}
+  .hrow .hbadge.stopped{background:rgba(125,130,140,.15);color:var(--dim)}
+  .hrow .hmeta{font-size:12px;color:var(--dim);display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .hrow .hdate{font-size:11px;color:var(--dim)}
 
   /* settings sheet */
   .sheet{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10;display:flex;align-items:flex-end}
@@ -152,7 +180,20 @@
 
 <!-- HOME -->
 <div class="screen" id="homeScreen">
-  <button class="cog" id="homeCog" aria-label="Settings">&#9881;</button>
+  <div class="top-actions">
+    <button class="iconbtn" id="homeHistoryBtn" aria-label="History" title="History">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 3v18h18"/>
+        <path d="m7 15 4-5 4 3 5-7"/>
+      </svg>
+    </button>
+    <button class="iconbtn" id="homeCog" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
   <div class="title">Arithmetic Trainer</div>
   <div class="cards" id="cards"></div>
   <button class="btn" id="startBtn">Start</button>
@@ -160,9 +201,23 @@
 
 <!-- END -->
 <div class="screen hidden" id="endScreen">
-  <button class="cog" id="endCog" aria-label="Settings">&#9881;</button>
+  <div class="top-actions">
+    <button class="iconbtn" id="endHistoryBtn" aria-label="History" title="History">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 3v18h18"/>
+        <path d="m7 15 4-5 4 3 5-7"/>
+      </svg>
+    </button>
+    <button class="iconbtn" id="endCog" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
   <div class="results">
     <div class="title" id="endTitle">Time</div>
+    <div class="pb-banner hidden" id="pbBanner">&#x2605; New Personal Best! &#x2605;</div>
     <div class="big" id="finalScore">0</div>
     <div class="sub" id="finalSub">0.0 per minute</div>
     <div class="panel" id="chartPanel">
@@ -176,6 +231,13 @@
     <div class="panel" id="slowPanel">
       <div class="phead">Slowest questions</div>
       <div id="slowest"></div>
+    </div>
+    <div class="panel" id="historyPanel">
+      <div class="phead" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Recent Runs &middot; <span id="histPresetTitle"></span></span>
+        <button class="linkbtn" id="openHistorySheetBtn" style="font-size:11px;padding:0">All &rsaquo;</button>
+      </div>
+      <div id="recentHistoryList"></div>
     </div>
     <div class="actions">
       <button class="btn" id="againBtn">Go again</button>
@@ -234,6 +296,37 @@
   </div>
 </div>
 
+<!-- HISTORY -->
+<div class="sheet hidden" id="historySheet">
+  <div class="sheet-inner">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2>History &middot; <span id="histSheetPreset">Default</span></h2>
+      <button class="linkbtn" id="closeHistBtn" style="font-size:18px;line-height:1;text-decoration:none;padding:4px 8px;cursor:pointer">&times;</button>
+    </div>
+    <div class="seg" id="histPresetSeg" style="margin-bottom:14px;overflow-x:auto;padding-bottom:2px"></div>
+    <div class="hist-stat-grid">
+      <div class="hist-stat">
+        <div class="val" id="statRuns">0</div>
+        <div class="lbl">Runs</div>
+      </div>
+      <div class="hist-stat">
+        <div class="val" id="statPB">&mdash;</div>
+        <div class="lbl" id="statPBLbl">Best</div>
+      </div>
+      <div class="hist-stat">
+        <div class="val" id="statAvg">&mdash;</div>
+        <div class="lbl" id="statAvgLbl">Avg Rate</div>
+      </div>
+    </div>
+    <div class="phead" style="margin-top:14px">All Recorded Runs</div>
+    <div id="fullHistoryList" style="max-height:42vh;overflow-y:auto;padding-right:4px"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px">
+      <button class="linkbtn" id="clearHistBtn" style="color:var(--warn);font-size:12px;text-decoration:none">Clear this preset</button>
+      <button class="btn" id="doneHistBtn" style="padding:10px 24px;font-size:14px">Done</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
   /* ============================================================
@@ -271,6 +364,80 @@
   let cooldownTick=null, cooldownEnd=0;
   const cfg = () => PRESETS[sel];
 
+  /* ---- score history & local storage ---- */
+  const HIST_KEY = 'trainer_history_v1';
+  function loadAllHistory(){
+    try {
+      const raw = localStorage.getItem(HIST_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) {
+      return {};
+    }
+  }
+  function getPresetHistory(name){
+    const all = loadAllHistory();
+    return Array.isArray(all[name]) ? all[name] : [];
+  }
+  function saveRunRecord(name, record){
+    try {
+      const all = loadAllHistory();
+      if(!all[name]) all[name] = [];
+      all[name].unshift(record); // newest first
+      if(all[name].length > 100) all[name] = all[name].slice(0, 100);
+      localStorage.setItem(HIST_KEY, JSON.stringify(all));
+    } catch(e) {}
+  }
+  function clearPresetHistory(name){
+    try {
+      const all = loadAllHistory();
+      delete all[name];
+      localStorage.setItem(HIST_KEY, JSON.stringify(all));
+    } catch(e) {}
+  }
+  function getPresetPB(runs, mode){
+    if(!runs || runs.length === 0) return null;
+    const match = runs.filter(r => r.mode === mode);
+    if(match.length === 0) return null;
+    if(mode === 'count'){
+      const completed = match.filter(r => !r.stopped);
+      if(completed.length === 0) return null;
+      return completed.reduce((best, r) => (r.elapsed < best.elapsed ? r : best), completed[0]);
+    } else {
+      return match.reduce((best, r) => (r.score > best.score ? r : best), match[0]);
+    }
+  }
+  function formatHistDate(ts){
+    const d = new Date(ts);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const timeStr = d.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+    if(isToday) return `Today ${timeStr}`;
+    const monthStr = d.toLocaleDateString([], { month:'short', day:'numeric' });
+    return `${monthStr} ${timeStr}`;
+  }
+  function renderRunRow(r, pb){
+    const isPb = pb && !r.stopped && r.id === pb.id;
+    const dateStr = formatHistDate(r.date);
+    const isCount = r.mode === 'count';
+    const mainVal = isCount ? `${r.elapsed.toFixed(1)}s` : `${r.score}`;
+    const subVal = isCount ? `${r.score}/${r.total}` : `${r.rate}/min`;
+    const stoppedTag = r.stopped ? '<span class="hbadge stopped">stopped</span>' : '';
+    const pbTag = isPb ? '<span class="hbadge">PB</span>' : '';
+    const wrongTag = r.wrong > 0 ? `<span style="color:var(--warn);font-size:11px">${r.wrong} wrong</span>` : '';
+
+    return `<div class="hrow">
+      <div class="hmain">
+        <span class="hscore">${mainVal}</span>
+        ${pbTag}${stoppedTag}
+        <span class="hdate">${dateStr}</span>
+      </div>
+      <div class="hmeta">
+        <span>${subVal}</span>
+        ${wrongTag}
+      </div>
+    </div>`;
+  }
+
   /* ---- preset cards ---- */
   function describe(p){
     const sym={add:'+',sub:'\u2212',mul:'\u00d7',div:'\u00f7'};
@@ -286,9 +453,18 @@
     const wrap=$('cards'); wrap.innerHTML='';
     PRESETS.forEach((p,i)=>{
       const d=describe(p);
+      const runs = getPresetHistory(p.name);
+      const pb = getPresetPB(runs, p.mode);
+      let pbHtml = '';
+      if(pb){
+        const isCount = p.mode === 'count';
+        const bestVal = isCount ? `${pb.elapsed.toFixed(1)}s` : `${pb.score}`;
+        const detail = isCount ? `(${pb.score}/${pb.total})` : `(${pb.rate}/min)`;
+        pbHtml = `<div class="card-pb">PB <b>${bestVal}</b> <span style="color:var(--dim)">${detail}</span> &middot; ${runs.length} run${runs.length===1?'':'s'}</div>`;
+      }
       const el=document.createElement('button');
       el.className='card'+(i===sel?' sel':'');
-      el.innerHTML=`<div class="name">${p.name}</div><div class="ops">${d.ops}</div><div class="rng">${d.rng}</div>`;
+      el.innerHTML=`<div class="name">${p.name}</div><div class="ops">${d.ops}</div><div class="rng">${d.rng}</div>${pbHtml}`;
       el.addEventListener('click',()=>{ sel=i; renderCards(); });
       wrap.appendChild(el);
     });
@@ -329,6 +505,7 @@
     if(cooldownTick){ clearInterval(cooldownTick); cooldownTick=null; }
     cooldownEnd=0;
     $('againBtn').textContent='Go again';
+    $('pbBanner').classList.add('hidden');
     running=true; startedAt=Date.now(); runT0=performance.now(); endAt=startedAt+cfg().dur*1000;
     updateScore();
     $('homeScreen').classList.add('hidden'); $('endScreen').classList.add('hidden');
@@ -349,6 +526,48 @@
     $('finalSub').textContent = count
       ? (wrongHistory.length>0 ? `${score}/${total} correct \u00b7 ${rate} per minute` : `${score} solved \u00b7 ${rate} per minute`)
       : (wrongHistory.length>0 ? `${score} solved (${wrongHistory.length} wrong) \u00b7 ${rate} per minute` : rate+' per minute');
+
+    /* record run history */
+    let isNewPB = false;
+    if(total > 0 || score > 0){
+      const prevRuns = getPresetHistory(cfg().name);
+      const prevPB = getPresetPB(prevRuns, cfg().mode);
+      const record = {
+        id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+        date: Date.now(),
+        score: score,
+        wrong: wrongHistory.length,
+        total: total,
+        mode: cfg().mode,
+        dur: cfg().dur,
+        count: cfg().count,
+        requireEnter: !!cfg().requireEnter,
+        elapsed: Math.round(elapsed * 10) / 10,
+        rate: rate,
+        stopped: reason === 'stopped'
+      };
+
+      if(!record.stopped){
+        if(!prevPB){
+          isNewPB = true;
+        } else if(cfg().mode === 'count'){
+          isNewPB = record.elapsed < prevPB.elapsed;
+        } else {
+          isNewPB = record.score > prevPB.score;
+        }
+      }
+
+      saveRunRecord(cfg().name, record);
+      renderCards();
+    }
+
+    const pbBanner = $('pbBanner');
+    if(isNewPB){
+      pbBanner.classList.remove('hidden');
+    } else {
+      pbBanner.classList.add('hidden');
+    }
+
     renderResults(elapsed);
 
     if(cooldownTick){ clearInterval(cooldownTick); cooldownTick=null; }
@@ -438,6 +657,16 @@
     $('slowest').innerHTML=slow.map(h=>
       `<div class="qrow"><span class="q">${h.text} = ${h.answer}</span><span class="t">${h.dt.toFixed(2)}s</span></div>`
     ).join('');
+
+    // Recent runs panel on end screen
+    $('histPresetTitle').textContent = cfg().name;
+    const runs = getPresetHistory(cfg().name);
+    if(runs.length === 0){
+      $('recentHistoryList').innerHTML = '<div class="empty">No past scores yet.</div>';
+    } else {
+      const pb = getPresetPB(runs, cfg().mode);
+      $('recentHistoryList').innerHTML = runs.slice(0, 5).map(r => renderRunRow(r, pb)).join('');
+    }
   }
 
   /* ---- answer submission & validation ---- */
@@ -544,6 +773,73 @@
   });
   sheet.addEventListener('click',e=>{ if(e.target===sheet) sheet.classList.add('hidden'); });
 
+  /* ---- history sheet ---- */
+  const historySheet = $('historySheet');
+  let activeHistIdx = 0;
+
+  function renderHistorySheetView(){
+    const p = PRESETS[activeHistIdx];
+    $('histSheetPreset').textContent = p.name;
+
+    const seg = $('histPresetSeg');
+    seg.innerHTML = '';
+    PRESETS.forEach((preset, i) => {
+      const b = document.createElement('button');
+      b.className = 'segbtn' + (i === activeHistIdx ? ' on' : '');
+      b.textContent = preset.name;
+      b.addEventListener('click', () => {
+        activeHistIdx = i;
+        renderHistorySheetView();
+      });
+      seg.appendChild(b);
+    });
+
+    const runs = getPresetHistory(p.name);
+    const pb = getPresetPB(runs, p.mode);
+    $('statRuns').textContent = String(runs.length);
+
+    if(p.mode === 'count'){
+      $('statPBLbl').textContent = 'Best Time';
+      $('statPB').textContent = pb ? `${pb.elapsed.toFixed(1)}s` : '—';
+    } else {
+      $('statPBLbl').textContent = 'Best Score';
+      $('statPB').textContent = pb ? String(pb.score) : '—';
+    }
+
+    const validRates = runs.map(r => parseFloat(r.rate)).filter(v => !isNaN(v) && v > 0);
+    const avgRate = validRates.length ? (validRates.reduce((a,b)=>a+b,0) / validRates.length).toFixed(1) : null;
+    $('statAvg').textContent = avgRate ? `${avgRate}/min` : '—';
+
+    const list = $('fullHistoryList');
+    if(runs.length === 0){
+      list.innerHTML = '<div class="empty" style="padding:24px 0">No recorded scores for this preset yet.</div>';
+    } else {
+      list.innerHTML = runs.map(r => renderRunRow(r, pb)).join('');
+    }
+  }
+
+  function openHistory(idx){
+    activeHistIdx = (typeof idx === 'number' && idx >= 0 && idx < PRESETS.length) ? idx : sel;
+    renderHistorySheetView();
+    historySheet.classList.remove('hidden');
+  }
+
+  $('homeHistoryBtn').addEventListener('click', () => openHistory(sel));
+  $('endHistoryBtn').addEventListener('click', () => openHistory(sel));
+  $('openHistorySheetBtn').addEventListener('click', () => openHistory(sel));
+  $('closeHistBtn').addEventListener('click', () => historySheet.classList.add('hidden'));
+  $('doneHistBtn').addEventListener('click', () => historySheet.classList.add('hidden'));
+  historySheet.addEventListener('click', e => { if(e.target === historySheet) historySheet.classList.add('hidden'); });
+
+  $('clearHistBtn').addEventListener('click', () => {
+    const p = PRESETS[activeHistIdx];
+    if(confirm(`Clear all recorded scores for "${p.name}"?`)){
+      clearPresetHistory(p.name);
+      renderHistorySheetView();
+      renderCards();
+    }
+  });
+
   /* ---- buttons ---- */
   $('startBtn').addEventListener('click',start);
   $('againBtn').addEventListener('click',start);
@@ -551,10 +847,16 @@
   $('changeBtn').addEventListener('click',()=>{
     $('endScreen').classList.add('hidden'); $('homeScreen').classList.remove('hidden');
   });
+
   /* Enter starts the run from the home screen (Start) or the end screen (Go again). */
   document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      sheet.classList.add('hidden');
+      historySheet.classList.add('hidden');
+      return;
+    }
     if(e.key!=='Enter') return;
-    if(running || !sheet.classList.contains('hidden') || e.target === $('answer')) return;
+    if(running || !sheet.classList.contains('hidden') || !historySheet.classList.contains('hidden') || e.target === $('answer')) return;
     const onEnd = !$('endScreen').classList.contains('hidden');
     const onHome = !$('homeScreen').classList.contains('hidden');
     if(onEnd){
