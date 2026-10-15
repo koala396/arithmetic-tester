@@ -149,17 +149,29 @@
     gap:10px;width:min(94vw,540px);
   }
   .card{
+    position:relative;
     text-align:left;background:var(--panel);border:1px solid var(--line);
     border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .1s;
     display:flex;flex-direction:column;justify-content:flex-start;
   }
   .card.sel{border-color:var(--accent);background:rgba(94,230,168,.06)}
-  .card .name{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px;line-height:1.25}
+  .card .name{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px;line-height:1.25;padding-right:20px}
   .card.sel .name{color:var(--accent)}
   .card .ops{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.02em}
   .card .rng{font-size:11px;color:var(--dim);margin-top:3px;font-variant-numeric:tabular-nums;line-height:1.3}
   .card-pb{font-size:11px;color:var(--accent);margin-top:6px;font-variant-numeric:tabular-nums;line-height:1.3}
   .card-pb b{font-weight:600}
+  .card-del{
+    position:absolute;top:6px;right:8px;
+    background:none;border:none;color:var(--dim);
+    font-size:18px;line-height:1;padding:2px 6px;cursor:pointer;
+    border-radius:4px;transition:color .15s,background .15s;
+  }
+  .card-del:hover{color:var(--warn);background:rgba(255,107,107,.12)}
+  .card-section-label{
+    grid-column:1/-1;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--dim);text-align:left;padding-left:2px;margin-top:6px;margin-bottom:-2px;
+  }
 
   /* history list rows and stats */
   .hist-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
@@ -300,6 +312,10 @@
 <div class="sheet hidden" id="sheet">
   <div class="sheet-inner">
     <h2>Settings &middot; <span id="sheetName">Mode</span></h2>
+    <div class="row" id="nameRow" style="margin-bottom:12px;padding-top:0">
+      <span class="note">Name</span>
+      <input class="num" id="cfgName" type="text" style="width:170px;text-align:right;padding:6px 10px;font-size:13px" placeholder="Preset Name">
+    </div>
     <div class="op-grid">
       <button class="chip" data-op="add">+</button>
       <button class="chip" data-op="sub">&minus;</button>
@@ -397,47 +413,154 @@
      presentation: 'text' = text only, 'audio' = speech only.
      add{} ranges feed + and -  ·  mul{} ranges feed x and /
      ============================================================ */
-  const PRESETS = [
-    { name:'Default (Text)',
+  const DEFAULT_PRESETS = [
+    { id:'preset_0', name:'Default (Text)',
       ops:{add:true, sub:true, mul:true, div:true}, mode:'time', dur:120, count:60, requireEnter:true, presentation:'text',
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
 
-    { name:'Default (Speech)',
+    { id:'preset_1', name:'Default (Speech)',
       ops:{add:true, sub:true, mul:true, div:true}, mode:'time', dur:120, count:60, requireEnter:true, presentation:'audio',
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
 
-    { name:'Mult / Div (Text)',
+    { id:'preset_2', name:'Mult / Div (Text)',
       ops:{add:false, sub:false, mul:true, div:true}, mode:'count', dur:120, count:10, requireEnter:true, presentation:'text',
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:12, aMax:19,  bMin:12, bMax:100} },
 
-    { name:'Mult / Div (Speech)',
+    { id:'preset_3', name:'Mult / Div (Speech)',
       ops:{add:false, sub:false, mul:true, div:true}, mode:'count', dur:120, count:10, requireEnter:true, presentation:'audio',
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:12, aMax:19,  bMin:12, bMax:100} },
 
-    { name:'3-digit (Text)',
+    { id:'preset_4', name:'3-digit (Text)',
       ops:{add:true, sub:true, mul:false, div:false}, mode:'count', dur:120, count:20, requireEnter:true, presentation:'text',
       add:{aMin:100,aMax:999, bMin:100,bMax:999},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
 
-    { name:'3-digit (Speech)',
+    { id:'preset_5', name:'3-digit (Speech)',
       ops:{add:true, sub:true, mul:false, div:false}, mode:'count', dur:120, count:20, requireEnter:true, presentation:'audio',
       add:{aMin:100,aMax:999, bMin:100,bMax:999},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
   ];
+  const PRESETS = DEFAULT_PRESETS;
   /* ============================================================ */
 
   const $ = id => document.getElementById(id);
   const rnd = (lo,hi) => Math.floor(Math.random()*(hi-lo+1))+lo;
 
-  let sel=0, answer=0, score=0, running=false, startedAt=0, endAt=0, tick=null;
+  const CUSTOM_KEY = 'trainer_custom_configs_v1';
+  const LAST_SEL_KEY = 'trainer_last_selected_id';
+
+  function loadCustomConfigs(){
+    try {
+      const raw = localStorage.getItem(CUSTOM_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch(e) {
+      return [];
+    }
+  }
+
+  function saveCustomConfigs(list){
+    try {
+      localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
+    } catch(e) {}
+  }
+
+  function loadLastSelectedId(){
+    try {
+      return localStorage.getItem(LAST_SEL_KEY) || DEFAULT_PRESETS[0].id;
+    } catch(e) {
+      return DEFAULT_PRESETS[0].id;
+    }
+  }
+
+  function saveLastSelectedId(id){
+    try {
+      localStorage.setItem(LAST_SEL_KEY, id);
+    } catch(e) {}
+  }
+
+  let customConfigs = loadCustomConfigs();
+  let currentConfigId = loadLastSelectedId();
+
+  function getActiveConfig(){
+    const custom = customConfigs.find(c => c.id === currentConfigId);
+    if(custom) return custom;
+    const preset = DEFAULT_PRESETS.find(p => p.id === currentConfigId);
+    if(preset) return preset;
+    return DEFAULT_PRESETS[0];
+  }
+  const cfg = () => getActiveConfig();
+
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function getConfigSignature(c){
+    const ops = ['add','sub','mul','div'].filter(k => c.ops && c.ops[k]).sort().join(',');
+    const mode = c.mode || 'time';
+    const limit = mode === 'count' ? `cnt:${c.count}` : `dur:${c.dur}`;
+    const enter = c.requireEnter ? 'ent:1' : 'ent:0';
+    const pres = c.presentation || 'text';
+    const parts = [mode, limit, enter, pres, `ops:[${ops}]`];
+    if(c.ops && (c.ops.add || c.ops.sub)){
+      const a = c.add || {aMin:2, aMax:100, bMin:2, bMax:100};
+      parts.push(`add:${a.aMin}-${a.aMax},${a.bMin}-${a.bMax}`);
+    }
+    if(c.ops && (c.ops.mul || c.ops.div)){
+      const m = c.mul || {aMin:2, aMax:12, bMin:2, bMax:100};
+      parts.push(`mul:${m.aMin}-${m.aMax},${m.bMin}-${m.bMax}`);
+    }
+    return parts.join('|');
+  }
+
+  function findMatchingPreset(c){
+    const sig = getConfigSignature(c);
+    return DEFAULT_PRESETS.find(p => getConfigSignature(p) === sig) || null;
+  }
+
+  function getHistoryKey(c){
+    const preset = findMatchingPreset(c);
+    if(preset && (!c.isCustom || c.name === preset.name)){
+      return preset.name;
+    }
+    return 'custom::' + getConfigSignature(c);
+  }
+
+  function generateCustomName(c){
+    const sym = {add:'+', sub:'\u2212', mul:'\u00d7', div:'\u00f7'};
+    const activeOps = ['add','sub','mul','div'].filter(k => c.ops && c.ops[k]);
+    let opPart = '';
+    if(activeOps.length === 4){
+      opPart = '';
+    } else if(activeOps.length === 2 && c.ops.add && c.ops.sub){
+      opPart = '\u00b1';
+    } else if(activeOps.length === 2 && c.ops.mul && c.ops.div){
+      opPart = '\u00d7/\u00f7';
+    } else {
+      opPart = activeOps.map(k => sym[k]).join('');
+    }
+
+    const limitPart = c.mode === 'count' ? `${c.count}q` : `${c.dur}s`;
+    let presPart = '';
+    if(c.presentation === 'audio') presPart = ' Speech';
+    else if(c.presentation === 'both') presPart = ' Both';
+
+    const desc = [opPart.trim(), limitPart + presPart].filter(Boolean).join(' \u00b7 ');
+    return desc ? `Custom (${desc})` : `Custom (${limitPart})`;
+  }
+
+  let answer=0, score=0, running=false, startedAt=0, endAt=0, tick=null;
   let history=[], wrongHistory=[], qStart=0, runT0=0;
   let cooldownTick=null, cooldownEnd=0;
   let currentProblemText='', currentSpokenText='';
-  const cfg = () => PRESETS[sel];
 
   function speakCurrentProblem(){
     if(!('speechSynthesis' in window) || !currentSpokenText) return;
@@ -470,33 +593,40 @@
       return {};
     }
   }
-  function getPresetHistory(name){
+  function getConfigHistory(target){
+    const key = typeof target === 'string' ? target : getHistoryKey(target);
     const all = loadAllHistory();
-    if(Array.isArray(all[name])) return all[name];
-    if(name === 'Default (Text)' && Array.isArray(all['Default'])) return all['Default'];
-    if(name === 'Mult / Div (Text)' && Array.isArray(all['Mult / Div'])) return all['Mult / Div'];
-    if((name === '3-digit (Text)' || name === '3-digit add / sub (Text)') && Array.isArray(all['3-digit add / sub'])) return all['3-digit add / sub'];
+    if(Array.isArray(all[key])) return all[key];
+    if(key === 'Default (Text)' && Array.isArray(all['Default'])) return all['Default'];
+    if(key === 'Mult / Div (Text)' && Array.isArray(all['Mult / Div'])) return all['Mult / Div'];
+    if((key === '3-digit (Text)' || key === '3-digit add / sub (Text)') && Array.isArray(all['3-digit add / sub'])) return all['3-digit add / sub'];
     return [];
   }
-  function saveRunRecord(name, record){
+  const getPresetHistory = getConfigHistory;
+
+  function saveRunRecord(target, record){
     try {
+      const key = typeof target === 'string' ? target : getHistoryKey(target);
       const all = loadAllHistory();
-      if(!all[name]) all[name] = [];
-      all[name].unshift(record); // newest first
-      if(all[name].length > 100) all[name] = all[name].slice(0, 100);
+      if(!all[key]) all[key] = [];
+      all[key].unshift(record); // newest first
+      if(all[key].length > 100) all[key] = all[key].slice(0, 100);
       localStorage.setItem(HIST_KEY, JSON.stringify(all));
     } catch(e) {}
   }
-  function clearPresetHistory(name){
+  function clearConfigHistory(target){
     try {
+      const key = typeof target === 'string' ? target : getHistoryKey(target);
       const all = loadAllHistory();
-      delete all[name];
-      if(name === 'Default (Text)') delete all['Default'];
-      if(name === 'Mult / Div (Text)') delete all['Mult / Div'];
-      if(name === '3-digit (Text)' || name === '3-digit add / sub (Text)') delete all['3-digit add / sub'];
+      delete all[key];
+      if(key === 'Default (Text)') delete all['Default'];
+      if(key === 'Mult / Div (Text)') delete all['Mult / Div'];
+      if(key === '3-digit (Text)' || key === '3-digit add / sub (Text)') delete all['3-digit add / sub'];
       localStorage.setItem(HIST_KEY, JSON.stringify(all));
     } catch(e) {}
   }
+  const clearPresetHistory = clearConfigHistory;
+
   function getPresetPB(runs, mode){
     if(!runs || runs.length === 0) return null;
     const match = runs.filter(r => r.mode === mode);
@@ -541,38 +671,120 @@
     </div>`;
   }
 
+  function deleteCustomConfig(id){
+    const item = customConfigs.find(c => c.id === id);
+    if(!item) return;
+    if(confirm(`Remove custom configuration "${item.name}"?`)){
+      customConfigs = customConfigs.filter(c => c.id !== id);
+      saveCustomConfigs(customConfigs);
+      if(currentConfigId === id){
+        currentConfigId = DEFAULT_PRESETS[0].id;
+        saveLastSelectedId(currentConfigId);
+      }
+      renderCards();
+    }
+  }
+
   /* ---- preset cards ---- */
   function describe(p){
     const sym={add:'+',sub:'\u2212',mul:'\u00d7',div:'\u00f7'};
-    const ops=['add','sub','mul','div'].filter(k=>p.ops[k]).map(k=>sym[k]).join('  ');
+    const ops=['add','sub','mul','div'].filter(k=>p.ops && p.ops[k]).map(k=>sym[k]).join('  ');
     const r=[];
-    if(p.ops.add||p.ops.sub) r.push(`\u00b1 ${p.add.aMin}\u2013${p.add.aMax}, ${p.add.bMin}\u2013${p.add.bMax}`);
-    if(p.ops.mul||p.ops.div) r.push(`\u00d7 ${p.mul.aMin}\u2013${p.mul.aMax}, ${p.mul.bMin}\u2013${p.mul.bMax}`);
+    if(p.ops && (p.ops.add||p.ops.sub) && p.add) r.push(`\u00b1 ${p.add.aMin}\u2013${p.add.aMax}, ${p.add.bMin}\u2013${p.add.bMax}`);
+    if(p.ops && (p.ops.mul||p.ops.div) && p.mul) r.push(`\u00d7 ${p.mul.aMin}\u2013${p.mul.aMax}, ${p.mul.bMin}\u2013${p.mul.bMax}`);
     const limit = p.mode==='count' ? `${p.count} q` : `${p.dur}s`;
     const adv = p.requireEnter ? ' \u00b7 Enter' : '';
     const pres = (p.presentation==='audio' && !p.name.includes('Speech')) ? ' \u00b7 Spoken' : (p.presentation==='both' ? ' \u00b7 Both' : '');
     return {ops:`${ops}   \u00b7   ${limit}${adv}${pres}`, rng:r.join('  \u00b7  ')};
   }
-  function renderCards(){
-    const wrap=$('cards'); wrap.innerHTML='';
-    PRESETS.forEach((p,i)=>{
-      const d=describe(p);
-      const runs = getPresetHistory(p.name);
-      const pb = getPresetPB(runs, p.mode);
-      let pbHtml = '';
-      if(pb){
-        const isCount = p.mode === 'count';
-        const bestVal = isCount ? `${pb.elapsed.toFixed(1)}s` : `${pb.score}`;
-        const detail = isCount ? `(${pb.score}/${pb.total})` : `(${pb.rate}/min)`;
-        pbHtml = `<div class="card-pb">PB <b>${bestVal}</b> <span style="color:var(--dim)">${detail}</span> &middot; ${runs.length} run${runs.length===1?'':'s'}</div>`;
+
+  function createCardElement(p, isCustom){
+    const d = describe(p);
+    const runs = getConfigHistory(p);
+    const pb = getPresetPB(runs, p.mode);
+    let pbHtml = '';
+    if(pb){
+      const isCount = p.mode === 'count';
+      const bestVal = isCount ? `${pb.elapsed.toFixed(1)}s` : `${pb.score}`;
+      const detail = isCount ? `(${pb.score}/${pb.total})` : `(${pb.rate}/min)`;
+      pbHtml = `<div class="card-pb">PB <b>${bestVal}</b> <span style="color:var(--dim)">${detail}</span> &middot; ${runs.length} run${runs.length===1?'':'s'}</div>`;
+    } else if(runs.length > 0){
+      pbHtml = `<div class="card-pb" style="color:var(--dim)">${runs.length} run${runs.length===1?'':'s'}</div>`;
+    }
+
+    const isSel = p.id === currentConfigId;
+    const el = document.createElement('div');
+    el.className = 'card' + (isSel ? ' sel' : '');
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-pressed', isSel ? 'true' : 'false');
+
+    let delBtnHtml = '';
+    if(isCustom){
+      delBtnHtml = `<button class="card-del" title="Delete custom configuration" aria-label="Delete custom configuration">&times;</button>`;
+    }
+
+    el.innerHTML = `${delBtnHtml}<div class="name">${escapeHtml(p.name)}</div><div class="ops">${d.ops}</div><div class="rng">${d.rng}</div>${pbHtml}`;
+
+    if(isCustom){
+      const delBtn = el.querySelector('.card-del');
+      if(delBtn){
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          deleteCustomConfig(p.id);
+        });
       }
-      const el=document.createElement('button');
-      el.className='card'+(i===sel?' sel':'');
-      el.innerHTML=`<div class="name">${p.name}</div><div class="ops">${d.ops}</div><div class="rng">${d.rng}</div>${pbHtml}`;
-      el.addEventListener('click',()=>{ sel=i; renderCards(); });
-      wrap.appendChild(el);
+    }
+
+    const selectThis = () => {
+      currentConfigId = p.id;
+      saveLastSelectedId(currentConfigId);
+      renderCards();
+    };
+
+    el.addEventListener('click', selectThis);
+    el.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ' '){
+        if(e.target === el){
+          e.preventDefault();
+          selectThis();
+        }
+      }
     });
+
+    return el;
   }
+
+  function renderCards(){
+    const wrap = $('cards');
+    wrap.innerHTML = '';
+
+    const showHeaders = customConfigs.length > 0;
+    if(showHeaders){
+      const h1 = document.createElement('div');
+      h1.className = 'card-section-label';
+      h1.textContent = 'Presets';
+      wrap.appendChild(h1);
+    }
+
+    DEFAULT_PRESETS.forEach(p => {
+      wrap.appendChild(createCardElement(p, false));
+    });
+
+    if(customConfigs.length > 0){
+      const h2 = document.createElement('div');
+      h2.className = 'card-section-label';
+      h2.textContent = 'Custom Configurations';
+      wrap.appendChild(h2);
+
+      customConfigs.forEach(p => {
+        wrap.appendChild(createCardElement(p, true));
+      });
+    }
+
+    $('timer').textContent = cfg().mode === 'count' ? '0:00' : fmt(cfg().dur);
+  }
+
 
   /* ---- gameplay ---- */
   function nextProblem(){
@@ -659,19 +871,20 @@
     /* record run history */
     let isNewPB = false;
     if(total > 0 || score > 0){
-      const prevRuns = getPresetHistory(cfg().name);
-      const prevPB = getPresetPB(prevRuns, cfg().mode);
+      const currentCfg = cfg();
+      const prevRuns = getConfigHistory(currentCfg);
+      const prevPB = getPresetPB(prevRuns, currentCfg.mode);
       const record = {
         id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
         date: Date.now(),
         score: score,
         wrong: wrongHistory.length,
         total: total,
-        mode: cfg().mode,
-        dur: cfg().dur,
-        count: cfg().count,
-        requireEnter: !!cfg().requireEnter,
-        presentation: cfg().presentation || 'text',
+        mode: currentCfg.mode,
+        dur: currentCfg.dur,
+        count: currentCfg.count,
+        requireEnter: !!currentCfg.requireEnter,
+        presentation: currentCfg.presentation || 'text',
         elapsed: Math.round(elapsed * 10) / 10,
         rate: rate,
         stopped: reason === 'stopped'
@@ -680,14 +893,14 @@
       if(!record.stopped){
         if(!prevPB){
           isNewPB = true;
-        } else if(cfg().mode === 'count'){
+        } else if(currentCfg.mode === 'count'){
           isNewPB = record.elapsed < prevPB.elapsed;
         } else {
           isNewPB = record.score > prevPB.score;
         }
       }
 
-      saveRunRecord(cfg().name, record);
+      saveRunRecord(getHistoryKey(currentCfg), record);
       renderCards();
     }
 
@@ -790,7 +1003,7 @@
 
     // Recent runs panel on end screen
     $('histPresetTitle').textContent = cfg().name;
-    const runs = getPresetHistory(cfg().name);
+    const runs = getConfigHistory(cfg());
     if(runs.length === 0){
       $('recentHistoryList').innerHTML = '<div class="empty">No past scores yet.</div>';
     } else {
@@ -884,7 +1097,11 @@
   function openSettings(){
     const c=cfg();
     $('sheetName').textContent=c.name;
-    document.querySelectorAll('.chip').forEach(ch=>ch.classList.toggle('on',c.ops[ch.dataset.op]));
+    if($('cfgName')){
+      $('cfgName').value = c.isCustom ? c.name : '';
+      $('cfgName').placeholder = c.isCustom ? 'Custom' : `${c.name} (Custom)`;
+    }
+    document.querySelectorAll('.chip').forEach(ch=>ch.classList.toggle('on',!!(c.ops && c.ops[ch.dataset.op])));
     setSheetMode(c.mode||'time');
     const req = !!c.requireEnter;
     document.querySelectorAll('#advanceSeg .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.advance===(req?'enter':'auto')));
@@ -898,21 +1115,73 @@
   $('homeCog').addEventListener('click',openSettings);
   $('endCog').addEventListener('click',openSettings);
   document.querySelectorAll('.chip').forEach(ch=>ch.addEventListener('click',()=>ch.classList.toggle('on')));
+
   $('saveBtn').addEventListener('click',()=>{
-    const c=cfg(), ops={};
+    const ops={};
     document.querySelectorAll('.chip').forEach(ch=>ops[ch.dataset.op]=ch.classList.contains('on'));
     if(!Object.values(ops).some(Boolean)) ops.add=true;
-    c.ops=ops;
+
     const modeBtn=document.querySelector('#modeSeg .segbtn.on');
-    c.mode=modeBtn?modeBtn.dataset.mode:'time';
     const advBtn=document.querySelector('#advanceSeg .segbtn.on');
-    c.requireEnter=advBtn?advBtn.dataset.advance==='enter':false;
     const presBtn=document.querySelector('#presentSeg .segbtn.on');
-    c.presentation=presBtn?presBtn.dataset.present:'text';
-    c.dur=Math.max(5,parseInt($('dur').value,10)||c.dur);
-    c.count=Math.max(1,parseInt($('qcount').value,10)||c.count);
-    c.add={aMin:+$('aMin').value,aMax:+$('aMax').value,bMin:+$('bMin').value,bMax:+$('bMax').value};
-    c.mul={aMin:+$('cMin').value,aMax:+$('cMax').value,bMin:+$('dMin').value,bMax:+$('dMax').value};
+    const enteredName = ($('cfgName') ? $('cfgName').value.trim() : '');
+
+    const cand = {
+      ops: ops,
+      mode: modeBtn ? modeBtn.dataset.mode : 'time',
+      requireEnter: advBtn ? advBtn.dataset.advance==='enter' : false,
+      presentation: presBtn ? presBtn.dataset.present : 'text',
+      dur: Math.max(5, parseInt($('dur').value,10)||120),
+      count: Math.max(1, parseInt($('qcount').value,10)||20),
+      add: {
+        aMin: +$('aMin').value, aMax: +$('aMax').value,
+        bMin: +$('bMin').value, bMax: +$('bMax').value
+      },
+      mul: {
+        aMin: +$('cMin').value, aMax: +$('cMax').value,
+        bMin: +$('dMin').value, bMax: +$('dMax').value
+      }
+    };
+
+    const matchingPreset = findMatchingPreset(cand);
+    if(matchingPreset && (!enteredName || enteredName === matchingPreset.name)){
+      currentConfigId = matchingPreset.id;
+      saveLastSelectedId(currentConfigId);
+      sheet.classList.add('hidden');
+      renderCards();
+      return;
+    }
+
+    cand.isCustom = true;
+    cand.name = enteredName || generateCustomName(cand);
+
+    const candSig = getConfigSignature(cand);
+    const existingIdx = customConfigs.findIndex(x => getConfigSignature(x) === candSig);
+
+    if(existingIdx >= 0){
+      if(enteredName) customConfigs[existingIdx].name = enteredName;
+      currentConfigId = customConfigs[existingIdx].id;
+    } else {
+      const currentCfg = cfg();
+      const currentIsCustom = !!currentCfg.isCustom;
+      const currentRuns = currentIsCustom ? getConfigHistory(currentCfg).length : 1;
+
+      if(currentIsCustom && currentRuns === 0){
+        cand.id = currentCfg.id;
+        const curIdx = customConfigs.findIndex(x => x.id === cand.id);
+        if(curIdx >= 0) customConfigs[curIdx] = cand;
+        else customConfigs.unshift(cand);
+        currentConfigId = cand.id;
+      } else {
+        cand.id = 'custom_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        customConfigs.unshift(cand);
+        if(customConfigs.length > 20) customConfigs = customConfigs.slice(0, 20);
+        currentConfigId = cand.id;
+      }
+    }
+
+    saveCustomConfigs(customConfigs);
+    saveLastSelectedId(currentConfigId);
     sheet.classList.add('hidden');
     renderCards();
   });
@@ -920,26 +1189,31 @@
 
   /* ---- history sheet ---- */
   const historySheet = $('historySheet');
-  let activeHistIdx = 0;
+  let activeHistId = DEFAULT_PRESETS[0].id;
 
   function renderHistorySheetView(){
-    const p = PRESETS[activeHistIdx];
+    const all = [...DEFAULT_PRESETS, ...customConfigs];
+    let p = all.find(x => x.id === activeHistId);
+    if(!p){
+      p = all[0];
+      activeHistId = p.id;
+    }
     $('histSheetPreset').textContent = p.name;
 
     const seg = $('histPresetSeg');
     seg.innerHTML = '';
-    PRESETS.forEach((preset, i) => {
+    all.forEach(c => {
       const b = document.createElement('button');
-      b.className = 'segbtn' + (i === activeHistIdx ? ' on' : '');
-      b.textContent = preset.name;
+      b.className = 'segbtn' + (c.id === activeHistId ? ' on' : '');
+      b.textContent = c.name;
       b.addEventListener('click', () => {
-        activeHistIdx = i;
+        activeHistId = c.id;
         renderHistorySheetView();
       });
       seg.appendChild(b);
     });
 
-    const runs = getPresetHistory(p.name);
+    const runs = getConfigHistory(p);
     const pb = getPresetPB(runs, p.mode);
     $('statRuns').textContent = String(runs.length);
 
@@ -957,29 +1231,30 @@
 
     const list = $('fullHistoryList');
     if(runs.length === 0){
-      list.innerHTML = '<div class="empty" style="padding:24px 0">No recorded scores for this preset yet.</div>';
+      list.innerHTML = '<div class="empty" style="padding:24px 0">No recorded scores for this configuration yet.</div>';
     } else {
       list.innerHTML = runs.map(r => renderRunRow(r, pb)).join('');
     }
   }
 
-  function openHistory(idx){
-    activeHistIdx = (typeof idx === 'number' && idx >= 0 && idx < PRESETS.length) ? idx : sel;
+  function openHistory(configId){
+    activeHistId = (typeof configId === 'string' && configId) ? configId : cfg().id;
     renderHistorySheetView();
     historySheet.classList.remove('hidden');
   }
 
-  $('homeHistoryBtn').addEventListener('click', () => openHistory(sel));
-  $('endHistoryBtn').addEventListener('click', () => openHistory(sel));
-  $('openHistorySheetBtn').addEventListener('click', () => openHistory(sel));
+  $('homeHistoryBtn').addEventListener('click', () => openHistory(cfg().id));
+  $('endHistoryBtn').addEventListener('click', () => openHistory(cfg().id));
+  $('openHistorySheetBtn').addEventListener('click', () => openHistory(cfg().id));
   $('closeHistBtn').addEventListener('click', () => historySheet.classList.add('hidden'));
   $('doneHistBtn').addEventListener('click', () => historySheet.classList.add('hidden'));
   historySheet.addEventListener('click', e => { if(e.target === historySheet) historySheet.classList.add('hidden'); });
 
   $('clearHistBtn').addEventListener('click', () => {
-    const p = PRESETS[activeHistIdx];
+    const all = [...DEFAULT_PRESETS, ...customConfigs];
+    const p = all.find(x => x.id === activeHistId) || cfg();
     if(confirm(`Clear all recorded scores for "${p.name}"?`)){
-      clearPresetHistory(p.name);
+      clearConfigHistory(p);
       renderHistorySheetView();
       renderCards();
     }
@@ -990,7 +1265,9 @@
   $('againBtn').addEventListener('click',start);
   $('stopBtn').addEventListener('click',()=>finish('stopped'));
   $('changeBtn').addEventListener('click',()=>{
-    $('endScreen').classList.add('hidden'); $('homeScreen').classList.remove('hidden');
+    $('endScreen').classList.add('hidden');
+    $('homeScreen').classList.remove('hidden');
+    renderCards();
   });
   $('repeatBtn').addEventListener('click',()=>{
     if(running && (cfg().presentation||'text')!=='text'){
