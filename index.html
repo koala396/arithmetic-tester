@@ -61,12 +61,48 @@
     40%,60%{border-bottom-color:var(--warn);color:var(--warn);transform:translateX(4px)}
   }
   .answer.error{animation:flash-red .3s ease;border-bottom-color:var(--warn);color:var(--warn)}
+  .repeat-btn{
+    display:inline-flex;align-items:center;gap:7px;
+    background:var(--panel);border:1px solid var(--line);border-radius:20px;
+    color:var(--dim);font-family:inherit;font-size:12px;font-weight:600;
+    letter-spacing:.04em;padding:6px 14px;cursor:pointer;
+    transition:border-color .15s,color .15s,background .15s,transform .1s;
+    touch-action:manipulation;user-select:none;margin-top:-14px;
+  }
+  .repeat-btn:hover{color:var(--accent);border-color:var(--accent);background:rgba(94,230,168,.06)}
+  .repeat-btn:active{transform:translateY(1px)}
+  .repeat-btn.speaking{border-color:var(--accent);color:var(--accent);background:rgba(94,230,168,.12)}
+  .repeat-btn svg{width:14px;height:14px;display:block}
+  .repeat-btn .kbd-badge{
+    font-family:inherit;font-size:11px;font-weight:700;
+    background:var(--bg);border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;color:var(--dim);line-height:1.2;
+  }
+  .repeat-btn.hidden{display:none}
+  .problem.audio-only{cursor:pointer}
+  .problem .audio-sym{
+    display:inline-block;width:0.85em;height:0.85em;
+    vertical-align:-0.08em;color:var(--accent);
+    transition:transform .15s, opacity .15s;
+  }
+  .problem.speaking .audio-sym{
+    animation:pulse-sym .5s ease infinite alternate;
+  }
+  @keyframes pulse-sym{
+    0%{transform:scale(1);opacity:0.8}
+    100%{transform:scale(1.15);opacity:1}
+  }
 
   /* overlays */
   .screen{position:fixed;inset:0;background:var(--bg);z-index:5;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:24px;padding:34px;text-align:center;}
   .screen.hidden{display:none}
+  #homeScreen{
+    justify-content:center;overflow-y:auto;
+    padding:calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 24px);
+    gap:clamp(12px,2.2vh,22px);
+  }
   .top-actions{position:absolute;top:calc(env(safe-area-inset-top) + 14px);right:18px;display:flex;gap:8px;z-index:6}
   .iconbtn{
     background:var(--panel);border:1px solid var(--line);border-radius:8px;
@@ -108,16 +144,21 @@
     font-size:13px;letter-spacing:.04em;text-decoration:underline;cursor:pointer;padding:4px}
 
   /* preset cards */
-  .cards{display:flex;flex-direction:column;gap:10px;width:min(92vw,420px)}
+  .cards{
+    display:grid;grid-template-columns:repeat(2,1fr);
+    gap:10px;width:min(94vw,540px);
+  }
   .card{
     text-align:left;background:var(--panel);border:1px solid var(--line);
-    border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color .1s}
+    border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .1s;
+    display:flex;flex-direction:column;justify-content:flex-start;
+  }
   .card.sel{border-color:var(--accent);background:rgba(94,230,168,.06)}
-  .card .name{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px}
+  .card .name{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px;line-height:1.25}
   .card.sel .name{color:var(--accent)}
-  .card .ops{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.04em}
-  .card .rng{font-size:12px;color:var(--dim);margin-top:4px;font-variant-numeric:tabular-nums}
-  .card-pb{font-size:12px;color:var(--accent);margin-top:7px;font-variant-numeric:tabular-nums}
+  .card .ops{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .card .rng{font-size:11px;color:var(--dim);margin-top:3px;font-variant-numeric:tabular-nums;line-height:1.3}
+  .card-pb{font-size:11px;color:var(--accent);margin-top:6px;font-variant-numeric:tabular-nums;line-height:1.3}
   .card-pb b{font-weight:600}
 
   /* history list rows and stats */
@@ -148,7 +189,7 @@
   .chip.on{border-color:var(--accent);color:var(--accent);background:rgba(94,230,168,.07)}
   .seg{display:flex;gap:6px}
   .segbtn{border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--dim);
-    font-family:inherit;font-size:13px;font-weight:600;padding:7px 14px;cursor:pointer}
+    font-family:inherit;font-size:13px;font-weight:600;padding:7px 14px;cursor:pointer;white-space:nowrap;flex-shrink:0}
   .segbtn.on{border-color:var(--accent);color:var(--accent);background:rgba(94,230,168,.07)}
   .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
   .row .note{font-size:13px;color:var(--dim)}
@@ -176,6 +217,15 @@
     <input class="answer" id="answer" type="text" inputmode="numeric" pattern="[0-9]*"
            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Answer">
   </form>
+  <button class="repeat-btn hidden" id="repeatBtn" type="button" tabindex="-1" aria-label="Repeat spoken question" title="Repeat (Numpad +)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+    </svg>
+    <span>Repeat</span>
+    <span class="kbd-badge">+</span>
+  </button>
 </div>
 
 <!-- HOME -->
@@ -270,6 +320,14 @@
         <button class="segbtn" data-advance="enter">Enter</button>
       </div>
     </div>
+    <div class="row">
+      <span class="note">Question</span>
+      <div class="seg" id="presentSeg">
+        <button class="segbtn" data-present="text">Text</button>
+        <button class="segbtn" data-present="both">Both</button>
+        <button class="segbtn" data-present="audio">Spoken</button>
+      </div>
+    </div>
     <div class="row" id="durRow">
       <span class="note">Duration</span>
       <div class="range-inputs"><input class="num" id="dur" type="number" inputmode="numeric"><span>sec</span></div>
@@ -330,27 +388,43 @@
 <script>
 (function(){
   /* ============================================================
-     EDIT YOUR 3 PRESETS HERE.
+     EDIT YOUR 6 PRESETS HERE.
      ops:  which operations are active.
      mode: 'time' = countdown of dur seconds.
            'count' = run ends after `count` questions (timer counts up).
      dur:  seconds (used when mode==='time').
      count: number of questions (used when mode==='count').
+     presentation: 'text' = text only, 'audio' = speech only.
      add{} ranges feed + and -  ·  mul{} ranges feed x and /
      ============================================================ */
   const PRESETS = [
-    { name:'Default',
-      ops:{add:true, sub:true, mul:true, div:true}, mode:'time', dur:120, count:60, requireEnter:false,
+    { name:'Default (Text)',
+      ops:{add:true, sub:true, mul:true, div:true}, mode:'time', dur:120, count:60, requireEnter:true, presentation:'text',
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
 
-    { name:'Mult / Div',
-      ops:{add:false, sub:false, mul:true, div:true}, mode:'count', dur:120, count:10, requireEnter:false,
+    { name:'Default (Speech)',
+      ops:{add:true, sub:true, mul:true, div:true}, mode:'time', dur:120, count:60, requireEnter:true, presentation:'audio',
+      add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
+      mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
+
+    { name:'Mult / Div (Text)',
+      ops:{add:false, sub:false, mul:true, div:true}, mode:'count', dur:120, count:10, requireEnter:true, presentation:'text',
       add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
       mul:{aMin:12, aMax:19,  bMin:12, bMax:100} },
 
-    { name:'3-digit add / sub',
-      ops:{add:true, sub:true, mul:false, div:false}, mode:'time', dur:120, count:30, requireEnter:false,
+    { name:'Mult / Div (Speech)',
+      ops:{add:false, sub:false, mul:true, div:true}, mode:'count', dur:120, count:10, requireEnter:true, presentation:'audio',
+      add:{aMin:2,  aMax:100, bMin:2,  bMax:100},
+      mul:{aMin:12, aMax:19,  bMin:12, bMax:100} },
+
+    { name:'3-digit (Text)',
+      ops:{add:true, sub:true, mul:false, div:false}, mode:'time', dur:120, count:30, requireEnter:true, presentation:'text',
+      add:{aMin:100,aMax:999, bMin:100,bMax:999},
+      mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
+
+    { name:'3-digit (Speech)',
+      ops:{add:true, sub:true, mul:false, div:false}, mode:'time', dur:120, count:30, requireEnter:true, presentation:'audio',
       add:{aMin:100,aMax:999, bMin:100,bMax:999},
       mul:{aMin:2,  aMax:12,  bMin:2,  bMax:100} },
   ];
@@ -362,7 +436,29 @@
   let sel=0, answer=0, score=0, running=false, startedAt=0, endAt=0, tick=null;
   let history=[], wrongHistory=[], qStart=0, runT0=0;
   let cooldownTick=null, cooldownEnd=0;
+  let currentProblemText='', currentSpokenText='';
   const cfg = () => PRESETS[sel];
+
+  function speakCurrentProblem(){
+    if(!('speechSynthesis' in window) || !currentSpokenText) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(currentSpokenText);
+      u.rate = 1.15;
+      u.lang = 'en-US';
+      const btn = $('repeatBtn');
+      const prob = $('problem');
+      if(btn) btn.classList.add('speaking');
+      if(prob) prob.classList.add('speaking');
+      const clearSpeaking = () => {
+        if(btn) btn.classList.remove('speaking');
+        if(prob) prob.classList.remove('speaking');
+      };
+      u.onend = clearSpeaking;
+      u.onerror = clearSpeaking;
+      window.speechSynthesis.speak(u);
+    } catch(e) {}
+  }
 
   /* ---- score history & local storage ---- */
   const HIST_KEY = 'trainer_history_v1';
@@ -376,7 +472,11 @@
   }
   function getPresetHistory(name){
     const all = loadAllHistory();
-    return Array.isArray(all[name]) ? all[name] : [];
+    if(Array.isArray(all[name])) return all[name];
+    if(name === 'Default (Text)' && Array.isArray(all['Default'])) return all['Default'];
+    if(name === 'Mult / Div (Text)' && Array.isArray(all['Mult / Div'])) return all['Mult / Div'];
+    if((name === '3-digit (Text)' || name === '3-digit add / sub (Text)') && Array.isArray(all['3-digit add / sub'])) return all['3-digit add / sub'];
+    return [];
   }
   function saveRunRecord(name, record){
     try {
@@ -391,6 +491,9 @@
     try {
       const all = loadAllHistory();
       delete all[name];
+      if(name === 'Default (Text)') delete all['Default'];
+      if(name === 'Mult / Div (Text)') delete all['Mult / Div'];
+      if(name === '3-digit (Text)' || name === '3-digit add / sub (Text)') delete all['3-digit add / sub'];
       localStorage.setItem(HIST_KEY, JSON.stringify(all));
     } catch(e) {}
   }
@@ -447,7 +550,8 @@
     if(p.ops.mul||p.ops.div) r.push(`\u00d7 ${p.mul.aMin}\u2013${p.mul.aMax}, ${p.mul.bMin}\u2013${p.mul.bMax}`);
     const limit = p.mode==='count' ? `${p.count} q` : `${p.dur}s`;
     const adv = p.requireEnter ? ' \u00b7 Enter' : '';
-    return {ops:`${ops}   \u00b7   ${limit}${adv}`, rng:r.join('     ')};
+    const pres = (p.presentation==='audio' && !p.name.includes('Speech')) ? ' \u00b7 Spoken' : (p.presentation==='both' ? ' \u00b7 Both' : '');
+    return {ops:`${ops}   \u00b7   ${limit}${adv}${pres}`, rng:r.join('  \u00b7  ')};
   }
   function renderCards(){
     const wrap=$('cards'); wrap.innerHTML='';
@@ -475,14 +579,37 @@
     const c=cfg();
     const pool=['add','sub','mul','div'].filter(k=>c.ops[k]);
     const op=pool[rnd(0,pool.length-1)];
-    let text;
-    if(op==='add'){const a=rnd(c.add.aMin,c.add.aMax),b=rnd(c.add.bMin,c.add.bMax);text=`${a} + ${b}`;answer=a+b;}
-    else if(op==='sub'){const a=rnd(c.add.aMin,c.add.aMax),b=rnd(c.add.bMin,c.add.bMax);text=`${a+b} \u2212 ${a}`;answer=b;}
-    else if(op==='mul'){const a=rnd(c.mul.aMin,c.mul.aMax),b=rnd(c.mul.bMin,c.mul.bMax);text=`${a} \u00d7 ${b}`;answer=a*b;}
-    else{const a=rnd(c.mul.aMin,c.mul.aMax),b=rnd(c.mul.bMin,c.mul.bMax);text=`${a*b} \u00f7 ${a}`;answer=b;}
-    $('problem').textContent=text;
+    let text, spoken;
+    if(op==='add'){const a=rnd(c.add.aMin,c.add.aMax),b=rnd(c.add.bMin,c.add.bMax);text=`${a} + ${b}`;spoken=`${a} plus ${b}`;answer=a+b;}
+    else if(op==='sub'){const a=rnd(c.add.aMin,c.add.aMax),b=rnd(c.add.bMin,c.add.bMax);text=`${a+b} \u2212 ${a}`;spoken=`${a+b} minus ${a}`;answer=b;}
+    else if(op==='mul'){const a=rnd(c.mul.aMin,c.mul.aMax),b=rnd(c.mul.bMin,c.mul.bMax);text=`${a} \u00d7 ${b}`;spoken=`${a} times ${b}`;answer=a*b;}
+    else{const a=rnd(c.mul.aMin,c.mul.aMax),b=rnd(c.mul.bMin,c.mul.bMax);text=`${a*b} \u00f7 ${a}`;spoken=`${a*b} divided by ${a}`;answer=b;}
+    currentProblemText=text;
+    currentSpokenText=spoken;
+
+    const prob=$('problem');
+    const isAudioOnly = (c.presentation||'text') === 'audio';
+    if(isAudioOnly){
+      prob.innerHTML = `<svg class="audio-sym" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Spoken question"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+      prob.classList.add('audio-only');
+    } else {
+      prob.textContent = text;
+      prob.classList.remove('audio-only');
+    }
+
+    const repeatBtn=$('repeatBtn');
+    if((c.presentation||'text')==='both' || (c.presentation||'text')==='audio'){
+      repeatBtn.classList.remove('hidden');
+    } else {
+      repeatBtn.classList.add('hidden');
+    }
+
     const a=$('answer'); a.value=''; a.classList.remove('error'); if(running) a.focus();
     qStart=performance.now();
+
+    if((c.presentation||'text')==='both' || (c.presentation||'text')==='audio'){
+      speakCurrentProblem();
+    }
   }
 
   function fmt(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
@@ -504,6 +631,7 @@
     score=0; history=[]; wrongHistory=[];
     if(cooldownTick){ clearInterval(cooldownTick); cooldownTick=null; }
     cooldownEnd=0;
+    if('speechSynthesis' in window) window.speechSynthesis.cancel();
     $('againBtn').textContent='Go again';
     $('pbBanner').classList.add('hidden');
     running=true; startedAt=Date.now(); runT0=performance.now(); endAt=startedAt+cfg().dur*1000;
@@ -515,6 +643,7 @@
   function finish(reason){
     if(!running) return;
     running=false; clearInterval(tick); $('answer').blur();
+    if('speechSynthesis' in window) window.speechSynthesis.cancel();
     const elapsed = cfg().mode==='count'
       ? (Date.now()-startedAt)/1000
       : Math.min(cfg().dur,(Date.now()-startedAt)/1000);
@@ -542,6 +671,7 @@
         dur: cfg().dur,
         count: cfg().count,
         requireEnter: !!cfg().requireEnter,
+        presentation: cfg().presentation || 'text',
         elapsed: Math.round(elapsed * 10) / 10,
         rate: rate,
         stopped: reason === 'stopped'
@@ -672,7 +802,7 @@
   /* ---- answer submission & validation ---- */
   function submitCorrect(){
     const now=performance.now();
-    history.push({text:$('problem').textContent, answer:answer, dt:(now-qStart)/1000, at:(now-runT0)/1000});
+    history.push({text:currentProblemText||$('problem').textContent, answer:answer, dt:(now-qStart)/1000, at:(now-runT0)/1000});
     score++; updateScore();
     if(cfg().mode==='count' && (score + wrongHistory.length)>=cfg().count){ finish('done'); return; }
     nextProblem();
@@ -680,7 +810,7 @@
 
   function submitIncorrect(v){
     const now=performance.now();
-    wrongHistory.push({text:$('problem').textContent, answer:answer, attempt:v, dt:(now-qStart)/1000, at:(now-runT0)/1000});
+    wrongHistory.push({text:currentProblemText||$('problem').textContent, answer:answer, attempt:v, dt:(now-qStart)/1000, at:(now-runT0)/1000});
     updateScore();
     if(cfg().mode==='count' && (score + wrongHistory.length)>=cfg().count){ finish('done'); return; }
     nextProblem();
@@ -719,6 +849,14 @@
   });
 
   $('answer').addEventListener('keydown',e=>{
+    if(e.code==='NumpadAdd' || (e.key==='+' && !e.shiftKey)){
+      e.preventDefault();
+      e.stopPropagation();
+      if(running && (cfg().presentation||'text')!=='text'){
+        speakCurrentProblem();
+      }
+      return;
+    }
     if(e.key==='Enter'){
       if(!running) return;
       if(cfg().requireEnter){
@@ -740,6 +878,9 @@
   document.querySelectorAll('#advanceSeg .segbtn').forEach(b=>b.addEventListener('click',()=>{
     document.querySelectorAll('#advanceSeg .segbtn').forEach(x=>x.classList.toggle('on',x===b));
   }));
+  document.querySelectorAll('#presentSeg .segbtn').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#presentSeg .segbtn').forEach(x=>x.classList.toggle('on',x===b));
+  }));
   function openSettings(){
     const c=cfg();
     $('sheetName').textContent=c.name;
@@ -747,6 +888,8 @@
     setSheetMode(c.mode||'time');
     const req = !!c.requireEnter;
     document.querySelectorAll('#advanceSeg .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.advance===(req?'enter':'auto')));
+    const pres = c.presentation || 'text';
+    document.querySelectorAll('#presentSeg .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.present===pres));
     $('dur').value=c.dur; $('qcount').value=c.count;
     $('aMin').value=c.add.aMin;$('aMax').value=c.add.aMax;$('bMin').value=c.add.bMin;$('bMax').value=c.add.bMax;
     $('cMin').value=c.mul.aMin;$('cMax').value=c.mul.aMax;$('dMin').value=c.mul.bMin;$('dMax').value=c.mul.bMax;
@@ -764,6 +907,8 @@
     c.mode=modeBtn?modeBtn.dataset.mode:'time';
     const advBtn=document.querySelector('#advanceSeg .segbtn.on');
     c.requireEnter=advBtn?advBtn.dataset.advance==='enter':false;
+    const presBtn=document.querySelector('#presentSeg .segbtn.on');
+    c.presentation=presBtn?presBtn.dataset.present:'text';
     c.dur=Math.max(5,parseInt($('dur').value,10)||c.dur);
     c.count=Math.max(1,parseInt($('qcount').value,10)||c.count);
     c.add={aMin:+$('aMin').value,aMax:+$('aMax').value,bMin:+$('bMin').value,bMax:+$('bMax').value};
@@ -847,12 +992,32 @@
   $('changeBtn').addEventListener('click',()=>{
     $('endScreen').classList.add('hidden'); $('homeScreen').classList.remove('hidden');
   });
+  $('repeatBtn').addEventListener('click',()=>{
+    if(running && (cfg().presentation||'text')!=='text'){
+      speakCurrentProblem();
+      $('answer').focus();
+    }
+  });
+  $('problem').addEventListener('click',()=>{
+    if(running && (cfg().presentation||'text')==='audio'){
+      speakCurrentProblem();
+      $('answer').focus();
+    }
+  });
 
   /* Enter starts the run from the home screen (Start) or the end screen (Go again). */
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape'){
       sheet.classList.add('hidden');
       historySheet.classList.add('hidden');
+      return;
+    }
+    if(running && (e.code==='NumpadAdd' || (e.key==='+' && !e.shiftKey))){
+      e.preventDefault();
+      if((cfg().presentation||'text')!=='text'){
+        speakCurrentProblem();
+        $('answer').focus();
+      }
       return;
     }
     if(e.key!=='Enter') return;
