@@ -554,7 +554,7 @@
     else if(c.presentation === 'both') presPart = ' Both';
 
     const desc = [opPart.trim(), limitPart + presPart].filter(Boolean).join(' \u00b7 ');
-    return desc ? `Custom (${desc})` : `Custom (${limitPart})`;
+    return desc ? `${desc}` : `${limitPart}`;
   }
 
   let answer=0, score=0, running=false, startedAt=0, endAt=0, tick=null;
@@ -692,10 +692,10 @@
     const r=[];
     if(p.ops && (p.ops.add||p.ops.sub) && p.add) r.push(`\u00b1 ${p.add.aMin}\u2013${p.add.aMax}, ${p.add.bMin}\u2013${p.add.bMax}`);
     if(p.ops && (p.ops.mul||p.ops.div) && p.mul) r.push(`\u00d7 ${p.mul.aMin}\u2013${p.mul.aMax}, ${p.mul.bMin}\u2013${p.mul.bMax}`);
-    const limit = p.mode==='count' ? `${p.count} q` : `${p.dur}s`;
-    const adv = p.requireEnter ? ' \u00b7 Enter' : '';
-    const pres = (p.presentation==='audio' && !p.name.includes('Speech')) ? ' \u00b7 Spoken' : (p.presentation==='both' ? ' \u00b7 Both' : '');
-    return {ops:`${ops}   \u00b7   ${limit}${adv}${pres}`, rng:r.join('  \u00b7  ')};
+    const limit = p.mode==='count' ? `${p.count}q` : `${p.dur}s`;
+    const pres = p.presentation==='audio' ? ' \u00b7 Spoken' : (p.presentation==='both' ? ' \u00b7 Both' : ' \u00b7 Text');
+    const adv = p.requireEnter ? ' \u00b7 Enter' : ' \u00b7 Auto';
+    return {ops:`[${ops}]   \u00b7   ${limit}${pres}${adv}`, rng:r.join('  \u00b7  ')};
   }
 
   function createCardElement(p, isCustom){
